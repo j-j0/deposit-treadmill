@@ -1,0 +1,25 @@
+{
+  "version": "0.2",
+  "language": "en,en-AU",
+  "words": [
+    "annualise",
+    "annualised",
+    "annualises",
+    "Cagr",
+    "CAGR",
+    "CAGRs",
+    "Cotality",
+    "CoreLogic",
+    "cvd",
+    "goalpost",
+    "goalposts",
+    "hedonic",
+    "Recharts",
+    "recognisable",
+    "rppi",
+    "treadmill",
+    "uncited",
+    "vitest"
+  ],
+  "ignorePaths": ["dist/**", "node_modules/**", "package-lock.json"]
+}

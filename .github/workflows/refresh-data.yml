@@ -1,0 +1,79 @@
+name: Refresh data
+
+# Pulls the supporting figures from the RBA and ABS APIs, runs the full verifier
+# suite over the result, and opens a PR only if something actually changed.
+#
+# It deliberately does NOT push to main. Every figure in this app is supposed to
+# be traceable, and an unreviewed bot commit rewriting the numbers people are
+# quoting is exactly the failure this project is built to avoid. The tests are a
+# hard gate: if the refreshed data fails verification, no PR is opened at all.
+#
+# The Cotality Home Value Index is NOT refreshed here — it has no free API and
+# is transcribed by hand each month. See README.
+
+on:
+  schedule:
+    # 09:00 UTC on the 3rd of each month — after the ABS quarterly releases and
+    # comfortably clear of the RBA's decision dates.
+    - cron: '0 9 3 * *'
+  workflow_dispatch: # so it can be run on demand from the Actions tab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fetch latest figures
+        run: npm run refresh-data
+
+      - name: Verify (blocks the PR if anything fails)
+        run: |
+          npm test
+          npm run build
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if git diff --quiet -- src/data/generated.ts; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No change to generated.ts — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- src/data/generated.ts
+          fi
+
+      - name: Open pull request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'data: refresh RBA and ABS figures'
+          branch: auto/refresh-data
+          delete-branch: true
+          title: 'Data refresh: RBA and ABS figures'
+          body: |
+            Automated refresh of the supporting figures via `npm run refresh-data`.
+
+            Sources — RBA statistical table F1 (cash rate); ABS Data API dataflows
+            `AWE`, `ANA_AGG` and `RES_DWELL_ST` (CC BY 4.0).
+
+            The full test suite and a production build passed against this data
+            before the PR was opened.
+
+            **Not covered here:** the Cotality Home Value Index medians and
+            5/10-year growth in `src/data/regions.capitals.ts`. Cotality has no
+            free API, so those stay a manual monthly transcription.
+
+            Please skim the diff before merging — the point of this project is
+            that no number reaches a reader unreviewed.

@@ -350,6 +350,7 @@ export default function App() {
                     regionName={region.name}
                     growth={growth}
                     propertyTypeLabel={propertyNoun}
+                    depositPct={state.depositPct}
                   />
                 )}
                 <GoalpostPanel
@@ -357,8 +358,13 @@ export default function App() {
                   treadmill={treadmill}
                   regionName={region.name}
                   propertyTypeLabel={propertyNoun}
+                  depositPct={state.depositPct}
                 />
-                <TrajectoryChart projection={projection} regionName={region.name} />
+                <TrajectoryChart
+                  projection={projection}
+                  regionName={region.name}
+                  depositPct={state.depositPct}
+                />
                 {growth && (
                   <ShareCard
                     result={treadmill}

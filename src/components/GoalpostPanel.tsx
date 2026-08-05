@@ -1,6 +1,12 @@
 import type { ProjectionResult } from '../lib/projection';
 import type { TreadmillResult } from '../lib/treadmill';
-import { absCurrency, calendarYearAfter, currency, duration } from '../lib/format';
+import {
+  absCurrency,
+  calendarYearAfter,
+  currency,
+  duration,
+  percentCompact,
+} from '../lib/format';
 
 /**
  * The moving goalposts: the deposit target today versus the target at the
@@ -15,9 +21,17 @@ interface Props {
   treadmill: TreadmillResult;
   regionName: string;
   propertyTypeLabel: string;
+  /** The user's deposit setting — NOT assumed to be 20%. */
+  depositPct: number;
 }
 
-export function GoalpostPanel({ projection, treadmill, regionName, propertyTypeLabel }: Props) {
+export function GoalpostPanel({
+  projection,
+  treadmill,
+  regionName,
+  propertyTypeLabel,
+  depositPct,
+}: Props) {
   const { outcome } = projection;
   const drift =
     outcome.kind === 'reached'
@@ -35,7 +49,7 @@ export function GoalpostPanel({ projection, treadmill, regionName, propertyTypeL
               <div className="goalpost__label">Deposit target today</div>
               <div className="goalpost__value">{currency(treadmill.depositTargetNow)}</div>
               <div className="goalpost__meta">
-                20% of the median {propertyTypeLabel} in {regionName}
+                {percentCompact(depositPct)} of the median {propertyTypeLabel} in {regionName}
               </div>
             </div>
 
@@ -90,7 +104,7 @@ export function GoalpostPanel({ projection, treadmill, regionName, propertyTypeL
               <div className="goalpost__label">Deposit target today</div>
               <div className="goalpost__value">{currency(treadmill.depositTargetNow)}</div>
               <div className="goalpost__meta">
-                20% of the median {propertyTypeLabel} in {regionName}
+                {percentCompact(depositPct)} of the median {propertyTypeLabel} in {regionName}
               </div>
             </div>
 

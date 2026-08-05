@@ -1,6 +1,6 @@
 import type { TreadmillResult } from '../lib/treadmill';
 import type { ResolvedGrowth } from '../data/index';
-import { absCurrency, currency, percent } from '../lib/format';
+import { absCurrency, currency, percent, percentCompact } from '../lib/format';
 import { AssumptionsLink, Citation } from './Citation';
 
 /**
@@ -16,6 +16,8 @@ interface Props {
   regionName: string;
   growth: ResolvedGrowth;
   propertyTypeLabel: string;
+  /** The user's deposit setting — NOT assumed to be 20%. */
+  depositPct: number;
 }
 
 const DIRECTION_COPY = {
@@ -24,7 +26,13 @@ const DIRECTION_COPY = {
   level: { badge: 'Holding level', verb: 'You hold level, within' },
 } as const;
 
-export function TreadmillHero({ result, regionName, growth, propertyTypeLabel }: Props) {
+export function TreadmillHero({
+  result,
+  regionName,
+  growth,
+  propertyTypeLabel,
+  depositPct,
+}: Props) {
   const { direction, groundGained, targetRise, netGround } = result;
   const copy = DIRECTION_COPY[direction];
 
@@ -62,7 +70,7 @@ export function TreadmillHero({ result, regionName, growth, propertyTypeLabel }:
           <>
             At {regionName}’s {growth.provenance.toLowerCase().includes('your own') ? '' : 'published '}
             growth rate of {percent(growth.ratePct)}
-            {growth.sourceId ? <Citation sourceId={growth.sourceId} /> : null}, a 20% deposit on
+            {growth.sourceId ? <Citation sourceId={growth.sourceId} /> : null}, a {percentCompact(depositPct)} deposit on
             the median {propertyTypeLabel} moves {absCurrency(targetRise)} further away each year
             on its own — before anyone saves a cent. That is the treadmill: the finish line is
             powered, and it runs at {absCurrency(targetRise / 12)} a month.

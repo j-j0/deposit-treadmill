@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TreadmillResult } from '../lib/treadmill';
 import type { ResolvedGrowth } from '../data/index';
-import { absCurrency, currency, percent } from '../lib/format';
+import { absCurrency, currency, percent, percentCompact } from '../lib/format';
 import type { AppState } from '../lib/urlState';
 import { shareableUrl } from '../lib/urlState';
 
@@ -45,6 +45,7 @@ interface Props {
 function drawCard(
   ctx: CanvasRenderingContext2D,
   { result, regionName, propertyTypeLabel, growth }: Omit<Props, 'state'>,
+  depositPct: number,
 ) {
   const { direction, groundGained, targetRise, netGround } = result;
 
@@ -161,7 +162,7 @@ function drawCard(
     H - 76,
   );
   ctx.fillText(
-    'Source: Cotality Home Value Index, 30 June 2026 · deposit target 20% of median',
+    `Source: Cotality Home Value Index, 30 June 2026 · deposit target ${percentCompact(depositPct)} of median`,
     L,
     H - 42,
   );
@@ -178,8 +179,8 @@ export function ShareCard({ result, regionName, propertyTypeLabel, growth, state
     if (!ctx) return;
     canvas.width = W;
     canvas.height = H;
-    drawCard(ctx, { result, regionName, propertyTypeLabel, growth });
-  }, [result, regionName, propertyTypeLabel, growth]);
+    drawCard(ctx, { result, regionName, propertyTypeLabel, growth }, state.depositPct);
+  }, [result, regionName, propertyTypeLabel, growth, state.depositPct]);
 
   const toBlob = useCallback(
     () =>

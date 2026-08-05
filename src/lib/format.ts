@@ -41,6 +41,16 @@ export function percent(value: number, digits = 1): string {
 }
 
 /**
+ * "20%" for whole numbers, "12.5%" otherwise.
+ *
+ * For percentages embedded in prose, where "20.0% of the median" reads as
+ * spurious precision but a half-point deposit setting must not be rounded away.
+ */
+export function percentCompact(value: number): string {
+  return percent(value, Number.isInteger(value) ? 0 : 1);
+}
+
+/**
  * "7 years 3 months". Reads as a wait, which is the point — a decimal like
  * "7.25 years" hides how long that actually is.
  */

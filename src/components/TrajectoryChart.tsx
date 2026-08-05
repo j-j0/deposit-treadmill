@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ProjectionResult } from '../lib/projection';
-import { compactCurrency, currency, duration } from '../lib/format';
+import { compactCurrency, currency, duration, percentCompact } from '../lib/format';
 import { useThemeColors } from '../lib/useThemeColors';
 
 /**
@@ -24,6 +24,8 @@ import { useThemeColors } from '../lib/useThemeColors';
 interface Props {
   projection: ProjectionResult;
   regionName: string;
+  /** The user's deposit setting — NOT assumed to be 20%. */
+  depositPct: number;
 }
 
 interface TooltipPayloadItem {
@@ -65,7 +67,7 @@ function ChartTooltip({
   );
 }
 
-export function TrajectoryChart({ projection, regionName }: Props) {
+export function TrajectoryChart({ projection, regionName, depositPct }: Props) {
   const c = useThemeColors();
   const { points, outcome, chartYears } = projection;
 
@@ -100,7 +102,7 @@ export function TrajectoryChart({ projection, regionName }: Props) {
             style={{ background: c['series-target'] }}
             aria-hidden="true"
           />
-          Deposit target (20% of the median)
+          Deposit target ({percentCompact(depositPct)} of the median)
         </span>
       </div>
 

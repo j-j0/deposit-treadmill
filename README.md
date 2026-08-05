@@ -13,6 +13,17 @@ with a direction — is the entire product.
 A static single-page app. No backend, no tracking, no network calls at runtime. Your inputs are
 encoded in the URL hash and never leave the browser.
 
+**v2** carries the question past the deposit: the mortgage that awaits (payment, payoff time,
+total interest — with extra repayments and room-rental income modelled), what a lender's
+serviceability test allows (assessed at the rate plus APRA's 3.0pp buffer), and rent-vs-buy as
+net worth over time — both paths starting from identical wealth and spending identical monthly
+cash, so neither side gets a thumb on the scale. Townhouses are selectable and honestly mapped:
+Cotality's methodology classifies strata townhouses inside its unit segment and publishes no
+separate series, so the Townhouse option reads unit figures and discloses exactly that. Rental
+yields per city per property type come from the HVI (implied market rent = median × yield ÷ 52,
+derivation shown); the default mortgage rate (6.2%, owner-occupier variable, new loans) comes
+from RBA table F6 and joins the auto-refresh pipeline.
+
 ---
 
 ## Running it

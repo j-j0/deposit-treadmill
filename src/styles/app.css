@@ -137,6 +137,168 @@ body {
   font-size: 1rem;
 }
 
+/* ---------- Sticky context bar ---------- */
+
+.context-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  /* Slides out of the way rather than blinking. */
+  transform: translateY(-100%);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.context-bar--visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.context-bar__region {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.context-bar__sep {
+  color: var(--text-muted);
+}
+
+.context-bar__price {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-bar {
+    transition: none;
+  }
+}
+
+/* ---------- Tabs ---------- */
+
+.tabs {
+  margin: 8px 0 20px;
+}
+
+.tabs__bar {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border-strong);
+  padding-bottom: 0;
+}
+
+.tabs__bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs__tab {
+  font: inherit;
+  font-size: 0.98rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tabs__tab:hover {
+  color: var(--text-secondary);
+  background: var(--surface-2);
+}
+
+.tabs__tab[aria-selected='true'] {
+  color: var(--series-savings);
+  border-bottom-color: var(--series-savings);
+}
+
+.tabs__blurb {
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  max-width: 74ch;
+}
+
+.tabpanel:focus {
+  outline: none;
+}
+
+/* Inline button that reads as a link — used for cross-tab navigation. */
+.inline-link {
+  font: inherit;
+  font-size: inherit;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--series-savings);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.inline-link:hover {
+  filter: brightness(1.15);
+}
+
+/* ---------- Collapsible disclosure ---------- */
+
+.disclosure-details {
+  margin-top: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.disclosure-details > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.disclosure-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure-details > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.disclosure-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.disclosure-details__body {
+  padding: 0 14px 14px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  max-width: 76ch;
+}
+
 /* ---------- Staleness banner ---------- */
 
 .stale-banner {
@@ -598,14 +760,19 @@ button:focus-visible {
 /* ---------- Citations ---------- */
 
 .citation {
+  font: inherit;
   font-size: 0.7em;
   vertical-align: super;
   line-height: 0;
   margin-left: 2px;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--series-savings);
   text-decoration: none;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
 .citation:hover,

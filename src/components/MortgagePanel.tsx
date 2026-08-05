@@ -1,7 +1,7 @@
 import type { MortgageResult } from '../lib/mortgage';
 import type { ProjectionResult } from '../lib/projection';
 import { absCurrency, currency, duration, percent } from '../lib/format';
-import { Citation } from './Citation';
+import { AssumptionsLink, Citation } from './Citation';
 
 /**
  * The mortgage that awaits on the other side of the deposit.
@@ -108,8 +108,7 @@ export function MortgagePanel({
             Paid as scheduled, this loan runs the full {loanTermYears} years and the interest bill
             reaches {currency(result.totalInterest)}. That figure is what {percent(mortgageRatePct, 2)}{' '}
             compounded across {loanTermYears} years does to {currency(loan)} — a property of rates
-            and time, not of the borrower. The extra-repayment slider below shows how sharply it
-            bends.
+            and time, not of the borrower. The <AssumptionsLink>extra-repayment slider</AssumptionsLink> shows how sharply it bends.
           </>
         )}
       </p>

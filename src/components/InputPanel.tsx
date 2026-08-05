@@ -94,10 +94,9 @@ export function InputPanel({ state, regions, region, onChange }: Props) {
           </div>
           {state.propertyType === 'townhouse' ? (
             <span className="field__hint">
-              Cotality counts strata-titled townhouses and villas inside its <em>unit</em> segment
-              <Citation sourceId="cotality-methodology" /> — no separate townhouse median exists,
-              so these are the unit figures. If you know your local townhouse price, use “Set my
-              own” growth plus your own numbers.
+              Cotality counts strata townhouses inside its <em>unit</em> segment
+              <Citation sourceId="cotality-methodology" /> — no separate townhouse series is
+              published, so these are unit figures.
             </span>
           ) : (
             <span className="field__hint">Cotality publishes all three separately.</span>
@@ -160,15 +159,13 @@ export function InputPanel({ state, regions, region, onChange }: Props) {
           </div>
           <span className="field__hint">
             {state.income > 0
-              ? `${((state.monthlySavings * 12 * 100) / state.income).toFixed(1)}% of the income above. `
+              ? `${((state.monthlySavings * 12 * 100) / state.income).toFixed(1)}% of income. `
               : ''}
             {state.monthlySavings === defaultMonthlySavings(state.income) && (
               <>
-                Pre-filled at the ABS national household saving ratio of{' '}
-                {HOUSEHOLD_SAVING_RATIO_PCT}%
-                <Citation sourceId={DEFAULT_SAVING_RATIO_SOURCE_ID} /> — an economy-wide average
-                measured on after-tax income. Someone deliberately saving for a deposit usually
-                saves more, so put your real figure in.
+                Pre-filled at the ABS saving ratio, {HOUSEHOLD_SAVING_RATIO_PCT}%
+                <Citation sourceId={DEFAULT_SAVING_RATIO_SOURCE_ID} /> — an economy-wide average.
+                Deposit savers usually save more.
               </>
             )}
           </span>
@@ -208,11 +205,10 @@ export function InputPanel({ state, regions, region, onChange }: Props) {
           <span className="field__hint">
             {impliedRent !== null ? (
               <>
-                Whole-property market rent ≈ {currency(impliedRent)}/wk — derived from the median
-                × its published {region.prices[dataType].grossYieldPct}% gross yield
-                <Citation sourceId={region.sourceIds[0]!} />. Room fills divide by an assumed{' '}
-                {bedrooms} bedrooms — a crude convention; put in the real figure for your area.
-                Feeds the mortgage payoff and rent-vs-buy below.
+                Market rent ≈ {currency(impliedRent)}/wk — median ×{' '}
+                {region.prices[dataType].grossYieldPct}% published yield
+                <Citation sourceId={region.sourceIds[0]!} /> ÷ 52. Rooms divide by an assumed{' '}
+                {bedrooms} bedrooms.
               </>
             ) : (
               <>No published yield for this selection — enter your own figure.</>

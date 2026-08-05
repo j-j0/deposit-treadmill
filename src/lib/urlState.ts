@@ -13,7 +13,20 @@ import type { GrowthBasis } from '../data/assumptions';
  * which lack every v2 key — decode into a fully working v2 state.
  */
 
+/** The five sections. Kept here because it round-trips through the URL. */
+export type TabId = 'deposit' | 'mortgage' | 'rentvsbuy' | 'assumptions' | 'sources';
+
+export const TAB_IDS: readonly TabId[] = [
+  'deposit',
+  'mortgage',
+  'rentvsbuy',
+  'assumptions',
+  'sources',
+];
+
 export interface AppState {
+  /** Which section is open. In the URL so a shared link lands where you meant. */
+  tab: TabId;
   regionId: string;
   propertyType: DisplayPropertyType;
   income: number;
@@ -44,6 +57,7 @@ export interface AppState {
 }
 
 const KEYS = {
+  tab: 'tab',
   regionId: 'r',
   propertyType: 't',
   income: 'i',
@@ -79,6 +93,7 @@ export function encodeState(state: AppState): string {
   const setNum = (key: string, value: number, digits = 0) =>
     params.set(key, digits > 0 ? value.toFixed(digits) : String(Math.round(value)));
 
+  params.set(KEYS.tab, state.tab);
   params.set(KEYS.regionId, state.regionId);
   params.set(KEYS.propertyType, state.propertyType);
   setNum(KEYS.income, state.income);
@@ -120,12 +135,29 @@ function nullableNum(params: URLSearchParams, key: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Does this hash look like one of ours?
+ *
+ * Anything else on the page that writes to `location.hash` — a plain anchor
+ * link, a browser find-on-page jump — would otherwise be read back as an empty
+ * state and silently reset every field the reader had entered. Requiring the
+ * region key means a foreign hash is ignored rather than obeyed.
+ */
+export function isAppStateHash(hash: string): boolean {
+  const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (!cleaned) return false;
+  return new URLSearchParams(cleaned).has(KEYS.regionId);
+}
+
 /** Decode, falling back to `defaults` for anything missing or malformed. */
 export function decodeState(hash: string, defaults: AppState): AppState {
   const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
   if (!cleaned) return defaults;
 
   const params = new URLSearchParams(cleaned);
+
+  const rawTab = params.get(KEYS.tab);
+  const tab = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : defaults.tab;
 
   const rawType = params.get(KEYS.propertyType);
   const propertyType = PROPERTY_TYPES.includes(rawType as DisplayPropertyType)
@@ -138,6 +170,7 @@ export function decodeState(hash: string, defaults: AppState): AppState {
     : defaults.growthBasis;
 
   return {
+    tab,
     regionId: params.get(KEYS.regionId) ?? defaults.regionId,
     propertyType,
     income: num(params, KEYS.income, defaults.income),

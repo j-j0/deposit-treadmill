@@ -1,6 +1,6 @@
 import type { AffordabilityResult } from '../lib/affordability';
 import { currency, percent } from '../lib/format';
-import { Citation } from './Citation';
+import { AssumptionsLink, Citation } from './Citation';
 import { APRA_BUFFER_SOURCE_ID } from '../data/assumptions';
 
 /**
@@ -44,7 +44,7 @@ export function AffordabilityPanel({
           <div className="goalpost__label">Repayment budget</div>
           <div className="goalpost__value">{currency(result.monthlyBudget)}/mo</div>
           <div className="goalpost__meta">
-            {repaymentSharePct}% of gross income — the conventional “stress” line, editable below
+            {repaymentSharePct}% of gross income — the conventional “stress” line, <AssumptionsLink>editable</AssumptionsLink>
           </div>
         </div>
 
@@ -88,12 +88,15 @@ export function AffordabilityPanel({
         )}
       </p>
 
-      <div className="disclosure">
+      <details className="disclosure-details">
+        <summary>What this estimate is and is not</summary>
+        <div className="disclosure-details__body">
         This is an estimate of the mechanism, not a borrowing quote. Real lenders assess declared
         living expenses, existing debts and credit history rather than a flat share of income —
         the share is deliberately editable in the assumptions below. Rate is assessed at{' '}
         {percent(mortgageRatePct, 2)} + {bufferPp.toFixed(1)}pp.
-      </div>
+        </div>
+      </details>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CAPITAL_REGIONS,
   DEFAULT_HOUSEHOLD_INCOME,
@@ -22,10 +22,14 @@ import { simulateMortgage } from './lib/mortgage';
 import { calculateAffordability } from './lib/affordability';
 import { compareRentVsBuy } from './lib/rentVsBuy';
 import {
+  isAppStateHash,
   readStateFromLocation,
   writeStateToLocation,
   type AppState,
+  type TabId,
 } from './lib/urlState';
+import { Tabs, type TabDef } from './components/Tabs';
+import { ContextBar } from './components/ContextBar';
 import { InputPanel } from './components/InputPanel';
 import { TreadmillHero } from './components/TreadmillHero';
 import { GoalpostPanel } from './components/GoalpostPanel';
@@ -37,6 +41,7 @@ import { AssumptionsPanel } from './components/AssumptionsPanel';
 import { ShareCard } from './components/ShareCard';
 import { SourcesPanel } from './components/SourcesPanel';
 import { FreshnessBanner } from './components/FreshnessBanner';
+import { SourceNavContext, AssumptionsNavContext } from './components/Citation';
 import { currency } from './lib/format';
 
 const PROPERTY_NOUN: Record<DisplayPropertyType, string> = {
@@ -46,7 +51,48 @@ const PROPERTY_NOUN: Record<DisplayPropertyType, string> = {
   dwelling: 'dwelling',
 };
 
+const PROPERTY_PLURAL: Record<DisplayPropertyType, string> = {
+  house: 'Houses',
+  townhouse: 'Townhouses',
+  unit: 'Units',
+  dwelling: 'All dwellings',
+};
+
+const TABS: readonly TabDef<TabId>[] = [
+  {
+    id: 'deposit',
+    label: 'The deposit',
+    blurb:
+      'Each year you save. Each year the deposit target moves. This is the gap between those two speeds.',
+  },
+  {
+    id: 'mortgage',
+    label: 'The mortgage',
+    blurb:
+      'What the loan costs once you are in — the repayment, how fast it clears, the interest total, and what a lender would actually approve.',
+  },
+  {
+    id: 'rentvsbuy',
+    label: 'Rent vs buy',
+    blurb:
+      'Two paths from the same starting cash and the same monthly budget. Which one leaves you better off, and after how long?',
+  },
+  {
+    id: 'assumptions',
+    label: 'Assumptions',
+    blurb:
+      'Every number the model needs that no source can supply. All editable — change one and every other tab updates.',
+  },
+  {
+    id: 'sources',
+    label: 'Sources',
+    blurb:
+      'Every figure in this calculator traces to one of these, or to an assumption you can edit.',
+  },
+];
+
 const DEFAULT_STATE: AppState = {
+  tab: 'deposit',
   regionId: DEFAULT_REGION_ID,
   propertyType: 'house',
   income: DEFAULT_HOUSEHOLD_INCOME,
@@ -76,6 +122,9 @@ const DEFAULT_STATE: AppState = {
 export default function App() {
   const [state, setState] = useState<AppState>(() => readStateFromLocation(DEFAULT_STATE));
   const [growth, setGrowth] = useState<ResolvedGrowth | null>(null);
+  const [pendingSource, setPendingSource] = useState<string | null>(null);
+  const inputsRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const region =
     CAPITAL_REGIONS.find((r) => r.id === state.regionId) ??
@@ -88,10 +137,13 @@ export default function App() {
   }, [state]);
 
   // Pasting a shared link into an already-open tab changes the hash without
-  // remounting, so without this the page would keep showing the old scenario.
-  // Our own writes use replaceState, which does not fire hashchange — no loop.
+  // remounting. Our own writes use replaceState (no hashchange), and a hash
+  // that isn't ours is ignored rather than read back as an empty state.
   useEffect(() => {
-    const onHashChange = () => setState(readStateFromLocation(DEFAULT_STATE));
+    const onHashChange = () => {
+      if (!isAppStateHash(window.location.hash)) return;
+      setState(readStateFromLocation(DEFAULT_STATE));
+    };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -105,6 +157,34 @@ export default function App() {
       cancelled = true;
     };
   }, [region, state.growthBasis, dataType, state.customGrowthPct]);
+
+  const setTab = useCallback((tab: TabId) => {
+    setState((previous) => ({ ...previous, tab }));
+    // A tab switch is a navigation: start the new section at its top rather
+    // than wherever the previous one happened to be scrolled to.
+    requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }, []);
+
+  // Citations live on every tab; clicking one opens Sources and scrolls to it.
+  const navigateToSource = useCallback((sourceId: string) => {
+    setState((previous) => ({ ...previous, tab: 'sources' }));
+    setPendingSource(sourceId);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingSource) return;
+    const id = requestAnimationFrame(() => {
+      document
+        .getElementById(`source-${pendingSource}`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setPendingSource(null);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pendingSource]);
+
+  const navigateToAssumptions = useCallback(() => setTab('assumptions'), [setTab]);
 
   const median = region.prices[dataType].median;
 
@@ -123,8 +203,6 @@ export default function App() {
   const treadmill = useMemo(() => calculateTreadmill(inputs), [inputs]);
   const projection = useMemo(() => projectTrajectory(inputs), [inputs]);
 
-  // ---- v2 derived figures --------------------------------------------------
-
   const loan = Math.max(0, median * (1 - state.depositPct / 100) + state.lmiCost);
 
   const mortgage = useMemo(
@@ -136,7 +214,13 @@ export default function App() {
         extraMonthly: state.extraRepaymentMonthly,
         offsetIncomeMonthly: (state.rentalIncomeWeekly * 52) / 12,
       }),
-    [loan, state.mortgageRatePct, state.loanTermYears, state.extraRepaymentMonthly, state.rentalIncomeWeekly],
+    [
+      loan,
+      state.mortgageRatePct,
+      state.loanTermYears,
+      state.extraRepaymentMonthly,
+      state.rentalIncomeWeekly,
+    ],
   );
 
   // The same mortgage if bought at the moment the projection says the deposit
@@ -203,115 +287,146 @@ export default function App() {
   const propertyNoun = PROPERTY_NOUN[state.propertyType];
 
   return (
-    <div className="app">
-      <header className="masthead">
-        <h1>Are you gaining or losing ground on a deposit?</h1>
-        <p>
-          Every deposit calculator asks how many years it takes to save one. This asks a different
-          question: over the next year, does the deposit target move away from you faster than you
-          move toward it? The gap between those two speeds is the whole story — and it belongs to
-          the market, not to the saver. Then, past the deposit: the mortgage, what a lender’s test
-          allows, and whether renting beats buying at all.
-        </p>
-      </header>
-
-      <FreshnessBanner />
-
-      {growth && (
-        <TreadmillHero
-          result={treadmill}
+    <SourceNavContext.Provider value={navigateToSource}>
+      <AssumptionsNavContext.Provider value={navigateToAssumptions}>
+        <ContextBar
           regionName={region.name}
-          growth={growth}
-          propertyTypeLabel={propertyNoun}
+          propertyTypeLabel={PROPERTY_PLURAL[state.propertyType]}
+          medianPrice={median}
+          watchRef={inputsRef}
         />
-      )}
 
-      <InputPanel state={state} regions={CAPITAL_REGIONS} region={region} onChange={onChange} />
+        <div className="app">
+          <header className="masthead">
+            <h1>Are you gaining or losing ground on a deposit?</h1>
+            <p>
+              Every deposit calculator asks how many years it takes to save one. This asks a
+              different question — and then follows it past the deposit, into the mortgage, and
+              into whether buying beats renting at all.
+            </p>
+          </header>
 
-      <GoalpostPanel
-        projection={projection}
-        treadmill={treadmill}
-        regionName={region.name}
-        propertyTypeLabel={propertyNoun}
-      />
+          <FreshnessBanner />
 
-      <TrajectoryChart projection={projection} regionName={region.name} />
+          <div ref={inputsRef}>
+            <InputPanel
+              state={state}
+              regions={CAPITAL_REGIONS}
+              region={region}
+              onChange={onChange}
+            />
+          </div>
 
-      <MortgagePanel
-        result={mortgage}
-        atGoalpost={mortgageAtGoalpost}
-        loan={loan}
-        price={median}
-        lmiCost={state.lmiCost}
-        mortgageRatePct={state.mortgageRatePct}
-        loanTermYears={state.loanTermYears}
-        monthlyIncome={state.income / 12}
-        rentalIncomeWeekly={state.rentalIncomeWeekly}
-        extraRepaymentMonthly={state.extraRepaymentMonthly}
-        regionName={region.name}
-        propertyTypeLabel={propertyNoun}
-        projection={projection}
-      />
+          <Tabs tabs={TABS} active={state.tab} onChange={setTab} />
 
-      <AffordabilityPanel
-        result={affordability}
-        medianPrice={median}
-        regionName={region.name}
-        propertyTypeLabel={propertyNoun}
-        repaymentSharePct={state.repaymentSharePct}
-        mortgageRatePct={state.mortgageRatePct}
-        bufferPp={APRA_BUFFER_PP}
-        depositPct={state.depositPct}
-      />
+          <div
+            ref={panelRef}
+            role="tabpanel"
+            id={`panel-${state.tab}`}
+            aria-labelledby={`tab-${state.tab}`}
+            tabIndex={-1}
+            className="tabpanel"
+          >
+            {state.tab === 'deposit' && (
+              <>
+                {growth && (
+                  <TreadmillHero
+                    result={treadmill}
+                    regionName={region.name}
+                    growth={growth}
+                    propertyTypeLabel={propertyNoun}
+                  />
+                )}
+                <GoalpostPanel
+                  projection={projection}
+                  treadmill={treadmill}
+                  regionName={region.name}
+                  propertyTypeLabel={propertyNoun}
+                />
+                <TrajectoryChart projection={projection} regionName={region.name} />
+                {growth && (
+                  <ShareCard
+                    result={treadmill}
+                    regionName={region.name}
+                    propertyTypeLabel={propertyNoun}
+                    growth={growth}
+                    state={state}
+                  />
+                )}
+              </>
+            )}
 
-      {growth && (
-        <RentVsBuyPanel
-          result={rentVsBuy}
-          horizonYears={state.horizonYears}
-          regionName={region.name}
-          growthProvenance={growth.provenance}
-          mortgageRatePct={state.mortgageRatePct}
-          rentWeeklyUsed={rentWeeklyUsed}
-          rentIsDerived={state.rentWeekly === null}
-        />
-      )}
+            {state.tab === 'mortgage' && (
+              <>
+                <MortgagePanel
+                  result={mortgage}
+                  atGoalpost={mortgageAtGoalpost}
+                  loan={loan}
+                  price={median}
+                  lmiCost={state.lmiCost}
+                  mortgageRatePct={state.mortgageRatePct}
+                  loanTermYears={state.loanTermYears}
+                  monthlyIncome={state.income / 12}
+                  rentalIncomeWeekly={state.rentalIncomeWeekly}
+                  extraRepaymentMonthly={state.extraRepaymentMonthly}
+                  regionName={region.name}
+                  propertyTypeLabel={propertyNoun}
+                  projection={projection}
+                />
+                <AffordabilityPanel
+                  result={affordability}
+                  medianPrice={median}
+                  regionName={region.name}
+                  propertyTypeLabel={propertyNoun}
+                  repaymentSharePct={state.repaymentSharePct}
+                  mortgageRatePct={state.mortgageRatePct}
+                  bufferPp={APRA_BUFFER_PP}
+                  depositPct={state.depositPct}
+                />
+              </>
+            )}
 
-      {growth && (
-        <AssumptionsPanel
-          state={state}
-          growth={growth}
-          propertyTypeLabel={propertyNoun + 's'}
-          impliedRentWeekly={impliedRent}
-          ownershipDefaultPct={ownershipDefault}
-          onChange={onChange}
-        />
-      )}
+            {state.tab === 'rentvsbuy' && growth && (
+              <RentVsBuyPanel
+                result={rentVsBuy}
+                horizonYears={state.horizonYears}
+                regionName={region.name}
+                growthProvenance={growth.provenance}
+                mortgageRatePct={state.mortgageRatePct}
+                rentWeeklyUsed={rentWeeklyUsed}
+                rentIsDerived={state.rentWeekly === null}
+              />
+            )}
 
-      {growth && (
-        <ShareCard
-          result={treadmill}
-          regionName={region.name}
-          propertyTypeLabel={propertyNoun}
-          growth={growth}
-          state={state}
-        />
-      )}
+            {state.tab === 'assumptions' && growth && (
+              <AssumptionsPanel
+                state={state}
+                growth={growth}
+                propertyTypeLabel={propertyNoun + 's'}
+                impliedRentWeekly={impliedRent}
+                ownershipDefaultPct={ownershipDefault}
+                onChange={onChange}
+              />
+            )}
 
-      <SourcesPanel />
+            {state.tab === 'sources' && <SourcesPanel />}
+          </div>
 
-      <footer className="footer">
-        <p>
-          Median {propertyNoun} value in {region.name} is {currency(median)}, from the Cotality
-          Home Value Index as at 30 June 2026. Price data © 2026 RP Data Pty Ltd t/as Cotality,
-          reproduced from the public monthly index release.
-        </p>
-        <p>
-          This is an illustration of mechanisms, not financial advice. Stamp duty and LMI enter
-          only as your editable assumptions; tax (CGT, negative gearing, tax on interest) is
-          disclosed rather than modelled. Your numbers stay in your browser — the inputs are
-          encoded in the URL and nothing is sent anywhere.
-        </p>
-      </footer>
-    </div>
+          <footer className="footer">
+            <p>
+              Median {propertyNoun} value in {region.name} is {currency(median)}, from the Cotality
+              Home Value Index as at 30 June 2026. Price data © 2026 RP Data Pty Ltd t/as Cotality,
+              reproduced from the public monthly index release.
+            </p>
+            <p>
+              This is an illustration of mechanisms, not financial advice. Stamp duty and LMI enter
+              only as your editable assumptions; tax (CGT, negative gearing, tax on interest) is
+              disclosed rather than modelled. Your numbers stay in your browser — the inputs are
+              encoded in the URL and nothing is sent anywhere.
+            </p>
+          </footer>
+        </div>
+      </AssumptionsNavContext.Provider>
+    </SourceNavContext.Provider>
   );
 }

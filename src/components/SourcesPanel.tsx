@@ -71,14 +71,17 @@ export function SourcesPanel() {
         </table>
       </div>
 
-      <div className="disclosure" style={{ marginTop: 20 }}>
-        <strong>On the ABS series this calculator does not use:</strong> most Australian house
+      <details className="disclosure-details" style={{ marginTop: 20 }}>
+        <summary>On the ABS series this calculator does not use</summary>
+        <div className="disclosure-details__body">
+        Most Australian house
         price commentary still cites the ABS Residential Property Price Indexes: Eight Capital
         Cities. That series was discontinued after December quarter 2021 and has not been updated
         since. Its ABS successor reports mean prices by state rather than medians by city, which
         cannot drive a city-level deposit target — which is why the price data here comes from
         Cotality.
-      </div>
+        </div>
+      </details>
     </section>
   );
 }

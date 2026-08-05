@@ -213,8 +213,10 @@ export function RentVsBuyPanel({
         </div>
       </div>
 
-      <div className="disclosure" style={{ marginTop: 18 }}>
-        <strong>How this comparison works, and what it leaves out.</strong> Both paths start with
+      <details className="disclosure-details">
+        <summary>How this comparison works, and what it leaves out</summary>
+        <div className="disclosure-details__body">
+        Both paths start with
         the same cash (deposit + upfront costs) and spend the same total each month — the renter
         pays rent and invests the difference at your savings-return rate, including the deposit
         they never spent. Not modelled, in either direction: the main-residence CGT exemption
@@ -222,7 +224,8 @@ export function RentVsBuyPanel({
         and income tax when letting rooms (reduces the room-income benefit), negative gearing,
         land tax, and selling costs at the end. Tax treatment differs enough between people that
         modelling it badly would be worse than saying plainly that it is not modelled.
-      </div>
+        </div>
+      </details>
     </section>
   );
 }

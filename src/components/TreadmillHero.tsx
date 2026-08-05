@@ -1,7 +1,7 @@
 import type { TreadmillResult } from '../lib/treadmill';
 import type { ResolvedGrowth } from '../data/index';
 import { absCurrency, currency, percent } from '../lib/format';
-import { Citation } from './Citation';
+import { AssumptionsLink, Citation } from './Citation';
 
 /**
  * The product, in one number.
@@ -72,8 +72,7 @@ export function TreadmillHero({ result, regionName, growth, propertyTypeLabel }:
             At {regionName}’s current rate of {percent(growth.ratePct)}
             {growth.sourceId ? <Citation sourceId={growth.sourceId} /> : null}, the deposit target
             is moving {targetRise < 0 ? 'toward you' : 'more slowly than you are'}. This reflects
-            what the market is doing right now, not a permanent condition — change the growth
-            assumption below to see how narrow that window is.
+            what the market is doing right now, not a permanent condition — change the <AssumptionsLink>growth assumption</AssumptionsLink> to see how narrow that window is.
           </>
         ) : (
           <>

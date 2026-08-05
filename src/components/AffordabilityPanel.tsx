@@ -1,5 +1,5 @@
 import type { AffordabilityResult } from '../lib/affordability';
-import { currency, percent } from '../lib/format';
+import { currency, percent, percentCompact } from '../lib/format';
 import { AssumptionsLink, Citation } from './Citation';
 import { APRA_BUFFER_SOURCE_ID } from '../data/assumptions';
 
@@ -22,6 +22,8 @@ interface Props {
   bufferPp: number;
   depositPct: number;
   isInvestment: boolean;
+  lmiCost: number;
+  maxLvrPct: number;
   /** Rent the lender counts, per week, after shading. Zero for owner-occupiers. */
   assessedRentWeekly: number;
   rentalShadingPct: number;
@@ -39,6 +41,8 @@ export function AffordabilityPanel({
   bufferPp,
   depositPct,
   isInvestment,
+  lmiCost,
+  maxLvrPct,
   assessedRentWeekly,
   rentalShadingPct,
   rentalIncomeWeekly,
@@ -77,7 +81,14 @@ export function AffordabilityPanel({
           <div className="goalpost__label">Estimated ceiling</div>
           <div className="goalpost__value">{currency(result.maxPrice)}</div>
           <div className="goalpost__meta">
-            {result.whichConstraint === 'deposit' ? (
+            {result.whichConstraint === 'lvr' ? (
+              <>
+                No lender writes this loan: capitalising {currency(lmiCost)} of LMI on top of a{' '}
+                {percentCompact(100 - depositPct)} loan breaches the{' '}
+                {percentCompact(maxLvrPct)} LVR cap
+                <AssumptionsLink> (editable)</AssumptionsLink>.
+              </>
+            ) : result.whichConstraint === 'deposit' ? (
               // Without naming the other limit, changes that only move
               // serviceability (rental income, the investor rate) look like
               // they did nothing at all.
@@ -96,7 +107,17 @@ export function AffordabilityPanel({
       </div>
 
       <p className="goalpost-note">
-        {ratio !== null && ratio > 1 ? (
+        {!result.isFeasible ? (
+          <>
+            <strong>At these settings there is no loan to be had.</strong> A{' '}
+            {percentCompact(depositPct)} deposit already puts the loan at{' '}
+            {percentCompact(100 - depositPct)} of the price, and {currency(lmiCost)} of LMI on top
+            pushes it past the {percentCompact(maxLvrPct)} cap. Real buyers resolve this by paying
+            the premium from savings instead of capitalising it — which shrinks the deposit, and
+            is the trap in treating a smaller deposit as free. Raise the deposit, or lower the LMI
+            to what you would pay up front.
+          </>
+        ) : ratio !== null && ratio > 1 ? (
           <>
             The median {propertyTypeLabel} in {regionName} is {currency(medianPrice)} —{' '}
             <strong>{ratio.toFixed(1)}×</strong> this ceiling. That multiple is the distance
@@ -114,6 +135,27 @@ export function AffordabilityPanel({
           </>
         )}
       </p>
+
+      {depositPct < 20 && (
+        <div className="disclosure">
+          {lmiCost > 0 ? (
+            <>
+              <strong>Below a 20% deposit, so LMI applies.</strong> Your{' '}
+              {currency(lmiCost)} is capitalised into the loan, which is why it lowers this
+              ceiling: it consumes borrowing capacity before any of it reaches the property.
+            </>
+          ) : (
+            <>
+              <strong>Below a 20% deposit, lenders charge LMI — and it is set to zero here.</strong>{' '}
+              A smaller deposit stretches your savings to a dearer property, which is real, but
+              this ceiling shows that stretch with none of its cost attached. LMI on a high-LVR
+              loan commonly runs to several per cent of the amount borrowed, and premiums are set
+              by private insurers rather than published, so no honest default exists. Get a quote
+              and <AssumptionsLink>enter it</AssumptionsLink> — the figure above will fall.
+            </>
+          )}
+        </div>
+      )}
 
       {isInvestment ? (
         <div className="disclosure">

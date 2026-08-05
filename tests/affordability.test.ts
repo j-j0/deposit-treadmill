@@ -16,6 +16,8 @@ const base: AffordabilityInputs = {
   depositPct: 20,
   upfrontCostsPct: 5.5,
   assessedRentalIncomeAnnual: 0,
+  lmiCost: 0,
+  maxLvrPct: 95,
 };
 
 describe('principalFromPayment', () => {
@@ -111,6 +113,98 @@ describe('calculateAffordability', () => {
     const owner = calculateAffordability({ ...base, savings: 600_000, mortgageRatePct: 6.2 });
     const investor = calculateAffordability({ ...base, savings: 600_000, mortgageRatePct: 6.4 });
     expect(investor.maxLoanByServiceability).toBeLessThan(owner.maxLoanByServiceability);
+  });
+
+  it('capitalised LMI eats borrowing capacity before it reaches the property', () => {
+    // Regression: LMI was absent from this calculation entirely, so dropping
+    // the deposit below 20% raised the ceiling with none of its cost attached.
+    const withLmi = calculateAffordability({
+      ...base,
+      savings: 600_000,
+      depositPct: 10,
+      lmiCost: 25_000,
+    });
+    const without = calculateAffordability({ ...base, savings: 600_000, depositPct: 10 });
+
+    expect(withLmi.maxLoanByServiceability).toBe(without.maxLoanByServiceability);
+    expect(withLmi.maxLoanForPropertyValue).toBeCloseTo(
+      without.maxLoanByServiceability - 25_000,
+      6,
+    );
+    expect(withLmi.maxPrice).toBeLessThan(without.maxPrice);
+    // The whole premium comes off the property, geared up by the loan fraction.
+    expect(without.maxPriceByServiceability - withLmi.maxPriceByServiceability).toBeCloseTo(
+      25_000 / 0.9,
+      4,
+    );
+  });
+
+  it('a smaller deposit still stretches savings when the deposit binds — that part is real', () => {
+    const twenty = calculateAffordability({ ...base, savings: 30_000, depositPct: 20 });
+    const ten = calculateAffordability({ ...base, savings: 30_000, depositPct: 10 });
+
+    expect(twenty.whichConstraint).toBe('deposit');
+    expect(ten.whichConstraint).toBe('deposit');
+    expect(ten.maxPrice).toBeGreaterThan(twenty.maxPrice);
+  });
+
+  it('but the LVR cap catches what capitalising LMI would otherwise hide', () => {
+    // $30k savings, 10% deposit, $25k LMI: the deposit maths says $193,548, but
+    // that loan would be 174,193 + 25,000 = 103% LVR. Nobody writes it.
+    const r = calculateAffordability({
+      ...base,
+      savings: 30_000,
+      depositPct: 10,
+      lmiCost: 25_000,
+    });
+
+    expect(r.isFeasible).toBe(false);
+    expect(r.whichConstraint).toBe('lvr');
+    expect(r.maxPrice).toBe(0);
+    // Capitalising $25k inside a 95% cap on a 90% loan needs a $500k property.
+    expect(r.minPriceForLvr).toBeCloseTo(25_000 / 0.05, 4);
+  });
+
+  it('the same LMI is fine on a dearer property, where it dilutes', () => {
+    const r = calculateAffordability({
+      ...base,
+      savings: 300_000,
+      annualIncome: 400_000,
+      depositPct: 10,
+      lmiCost: 25_000,
+    });
+    expect(r.isFeasible).toBe(true);
+    expect(r.maxPrice).toBeGreaterThan(r.minPriceForLvr);
+  });
+
+  it('a deposit smaller than the LVR cap allows is refused outright', () => {
+    // 2% deposit = 98% loan, past a 95% cap even with no LMI at all.
+    const r = calculateAffordability({ ...base, savings: 600_000, depositPct: 2, lmiCost: 0 });
+    expect(r.isFeasible).toBe(false);
+    expect(r.whichConstraint).toBe('lvr');
+  });
+
+  it('an LVR cap of 100% lets any deposit through when there is no LMI', () => {
+    const r = calculateAffordability({
+      ...base,
+      savings: 600_000,
+      depositPct: 2,
+      lmiCost: 0,
+      maxLvrPct: 100,
+    });
+    expect(r.isFeasible).toBe(true);
+  });
+
+  it('at a 20% deposit the LVR cap never binds', () => {
+    const r = calculateAffordability({ ...base, savings: 600_000, depositPct: 20 });
+    expect(r.minPriceForLvr).toBe(0);
+    expect(r.isFeasible).toBe(true);
+  });
+
+  it('LMI larger than the borrowing capacity floors the loan at zero, not below', () => {
+    const r = calculateAffordability({ ...base, savings: 600_000, lmiCost: 10_000_000 });
+    expect(r.maxLoanForPropertyValue).toBe(0);
+    expect(r.maxPrice).toBe(0);
   });
 
   it('handles zero income without dividing the universe', () => {

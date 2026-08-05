@@ -149,6 +149,17 @@ export const MORTGAGE_ASSUMPTIONS: readonly Assumption[] = [
     step: 5,
   },
   {
+    id: 'maxLvrPct',
+    label: 'Maximum loan-to-value ratio a lender will write',
+    rationale:
+      '95% is a common ceiling, and it includes any LMI capitalised into the loan — which is what stops a very small deposit from simply buying more. Policies vary by lender, borrower and property type, and none of them are published as open data, so this is a market convention rather than a sourced figure. Investors and some postcodes face tighter caps.',
+    defaultValue: 95,
+    unit: 'percent',
+    min: 60,
+    max: 100,
+    step: 1,
+  },
+  {
     id: 'upfrontCostsPct',
     label: 'Upfront transaction costs',
     rationale:

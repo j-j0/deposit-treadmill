@@ -22,6 +22,7 @@ const defaults: AppState = {
   mortgageRatePct: null,
   loanTermYears: 30,
   rentalShadingPct: 80,
+  maxLvrPct: 95,
   extraRepaymentMonthly: 0,
   repaymentSharePct: 30,
   upfrontCostsPct: 5.5,

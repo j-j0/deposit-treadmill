@@ -37,14 +37,15 @@ function componentSources(): Array<[string, string]> {
 
 describe('editable defaults are never written into prose', () => {
   it('no component hardcodes the deposit percentage', () => {
-    // AssumptionsPanel is exempt: its "below a 20% deposit, lenders charge LMI"
-    // is a statement about the market convention, which really is 20% however
-    // the user has set their own target.
-    const exempt = new Set(['AssumptionsPanel.tsx']);
+    // One literal 20% is legitimate: "a 20% deposit" is the threshold below
+    // which lenders charge LMI — a market convention that really is 20%
+    // however the user sets their own target. Allowing that exact idiom rather
+    // than exempting whole files keeps the guard live everywhere else in them.
+    const LMI_THRESHOLD_IDIOM = /\b20% deposit\b/g;
 
     for (const [file, source] of componentSources()) {
-      if (exempt.has(file)) continue;
-      expect(source, `${file} hardcodes "20%" — use percentCompact(depositPct)`).not.toMatch(
+      const remaining = source.replace(LMI_THRESHOLD_IDIOM, '');
+      expect(remaining, `${file} hardcodes "20%" — use percentCompact(depositPct)`).not.toMatch(
         /\b20%/,
       );
     }

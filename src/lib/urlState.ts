@@ -48,6 +48,7 @@ export interface AppState {
   mortgageRatePct: number | null;
   loanTermYears: number;
   rentalShadingPct: number;
+  maxLvrPct: number;
   extraRepaymentMonthly: number;
   repaymentSharePct: number;
   upfrontCostsPct: number;
@@ -68,6 +69,7 @@ const KEYS = {
   tab: 'tab',
   purpose: 'p',
   rentalShadingPct: 'sh',
+  maxLvrPct: 'lvr',
   regionId: 'r',
   propertyType: 't',
   income: 'i',
@@ -117,6 +119,7 @@ export function encodeState(state: AppState): string {
 
   setNum(KEYS.loanTermYears, state.loanTermYears);
   setNum(KEYS.rentalShadingPct, state.rentalShadingPct);
+  setNum(KEYS.maxLvrPct, state.maxLvrPct);
   setNum(KEYS.extraRepaymentMonthly, state.extraRepaymentMonthly);
   setNum(KEYS.repaymentSharePct, state.repaymentSharePct);
   setNum(KEYS.upfrontCostsPct, state.upfrontCostsPct, 2);
@@ -202,6 +205,7 @@ export function decodeState(hash: string, defaults: AppState): AppState {
     mortgageRatePct: nullableNum(params, KEYS.mortgageRatePct),
     loanTermYears: num(params, KEYS.loanTermYears, defaults.loanTermYears),
     rentalShadingPct: num(params, KEYS.rentalShadingPct, defaults.rentalShadingPct),
+    maxLvrPct: num(params, KEYS.maxLvrPct, defaults.maxLvrPct),
     extraRepaymentMonthly: num(params, KEYS.extraRepaymentMonthly, defaults.extraRepaymentMonthly),
     repaymentSharePct: num(params, KEYS.repaymentSharePct, defaults.repaymentSharePct),
     upfrontCostsPct: num(params, KEYS.upfrontCostsPct, defaults.upfrontCostsPct),

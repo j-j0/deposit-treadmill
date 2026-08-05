@@ -30,6 +30,26 @@ export interface AffordabilityInputs {
   /** Upfront transaction costs as percent of price (e.g. 5.5). */
   upfrontCostsPct: number;
   /**
+   * Lenders mortgage insurance, AUD. Modelled as capitalised into the loan —
+   * the usual arrangement, and consistent with the mortgage and rent-vs-buy
+   * models — so it consumes serviceability rather than savings.
+   *
+   * This matters most exactly where it is easiest to forget: dropping the
+   * deposit below 20% raises the price your savings can reach, and LMI is the
+   * cost attached to doing so. Leaving it out makes a small deposit look
+   * strictly better than it is.
+   */
+  lmiCost: number;
+  /**
+   * Maximum loan-to-value ratio a lender will write, percent, INCLUSIVE of
+   * capitalised LMI. Commonly 95%.
+   *
+   * Without this the model happily capitalises LMI on top of a 90% loan and
+   * reports a ceiling implying a 103% LVR — a loan nobody writes. The cap is
+   * what makes a small deposit cost something rather than being free money.
+   */
+  maxLvrPct: number;
+  /**
    * Rental income the lender will actually count, AUD per year, already
    * shaded for vacancy and costs.
    *
@@ -41,7 +61,7 @@ export interface AffordabilityInputs {
   assessedRentalIncomeAnnual: number;
 }
 
-export type AffordabilityConstraint = 'deposit' | 'serviceability';
+export type AffordabilityConstraint = 'deposit' | 'serviceability' | 'lvr';
 
 export interface AffordabilityResult {
   /** The rate serviceability is tested at: mortgage rate + buffer. */
@@ -54,6 +74,8 @@ export interface AffordabilityResult {
   monthlyBudgetFromRent: number;
   /** Largest loan whose ASSESSED repayment fits the budget. */
   maxLoanByServiceability: number;
+  /** The part of that loan left for the property once LMI is capitalised. */
+  maxLoanForPropertyValue: number;
   /**
    * Largest price the savings can open the door on: savings must cover
    * deposit% of price plus upfront% of price.
@@ -64,6 +86,14 @@ export interface AffordabilityResult {
   /** min of the two — the binding number. */
   maxPrice: number;
   whichConstraint: AffordabilityConstraint;
+  /**
+   * Smallest price at which capitalised LMI still fits inside the LVR cap.
+   * Fixed-dollar LMI is a heavier LVR burden on a cheap property, so this is a
+   * floor, not a ceiling.
+   */
+  minPriceForLvr: number;
+  /** False when the LVR floor sits above every ceiling — no loan is available. */
+  isFeasible: boolean;
   /** What the ACTUAL repayment (unbuffered rate) would be at maxPrice. */
   actualPaymentAtMax: number;
 }
@@ -92,7 +122,11 @@ export function calculateAffordability(inputs: AffordabilityInputs): Affordabili
     depositPct,
     upfrontCostsPct,
     assessedRentalIncomeAnnual,
+    lmiCost,
+    maxLvrPct,
   } = inputs;
+
+  const lmi = Math.max(0, lmiCost);
 
   const assessmentRatePct = mortgageRatePct + bufferPp;
 
@@ -114,16 +148,39 @@ export function calculateAffordability(inputs: AffordabilityInputs): Affordabili
   const maxPriceByDeposit = depositFraction > 0 ? savings / depositFraction : Infinity;
 
   // Serviceability constraint: price = loan + deposit part.
-  // loan = price × (1 − deposit%), so price = loan / (1 − deposit%).
+  // loan = price × (1 − deposit%) + LMI, so price = (maxLoan − LMI) / (1 − deposit%).
+  // Capitalised LMI eats borrowing capacity before any of it reaches the
+  // property, which is why a sub-20% deposit does not buy as much as the
+  // deposit arithmetic alone suggests.
   const loanFraction = 1 - depositPct / 100;
+  const maxLoanForPropertyValue = Math.max(0, maxLoanByServiceability - lmi);
   const maxPriceByServiceability =
-    loanFraction > 0 ? maxLoanByServiceability / loanFraction : Infinity;
+    loanFraction > 0 ? maxLoanForPropertyValue / loanFraction : Infinity;
 
-  const maxPrice = Math.min(maxPriceByDeposit, maxPriceByServiceability);
-  const whichConstraint: AffordabilityConstraint =
-    maxPriceByDeposit <= maxPriceByServiceability ? 'deposit' : 'serviceability';
+  // LVR cap: price×L + LMI ≤ (maxLvr/100)×price, so price ≥ LMI / (V − L).
+  // A fixed-dollar premium is a heavier LVR burden the cheaper the property,
+  // which is why this comes out as a floor rather than a ceiling.
+  const lvrFraction = maxLvrPct / 100;
+  const lvrHeadroom = lvrFraction - loanFraction;
+  let minPriceForLvr = 0;
+  if (lmi > 0) {
+    minPriceForLvr = lvrHeadroom > 0 ? lmi / lvrHeadroom : Infinity;
+  } else if (loanFraction > lvrFraction) {
+    // Even with no LMI, the bare loan already exceeds what a lender will write.
+    minPriceForLvr = Infinity;
+  }
 
-  const loanAtMax = Math.max(0, maxPrice * loanFraction);
+  const ceiling = Math.min(maxPriceByDeposit, maxPriceByServiceability);
+  const isFeasible = minPriceForLvr <= ceiling;
+  const maxPrice = isFeasible ? ceiling : 0;
+
+  const whichConstraint: AffordabilityConstraint = !isFeasible
+    ? 'lvr'
+    : maxPriceByDeposit <= maxPriceByServiceability
+      ? 'deposit'
+      : 'serviceability';
+
+  const loanAtMax = Math.max(0, maxPrice * loanFraction + (maxPrice > 0 ? lmi : 0));
   const actualPaymentAtMax = monthlyPayment(loanAtMax, mortgageRatePct, termYears);
 
   return {
@@ -132,10 +189,13 @@ export function calculateAffordability(inputs: AffordabilityInputs): Affordabili
     monthlyBudgetFromIncome,
     monthlyBudgetFromRent,
     maxLoanByServiceability,
+    maxLoanForPropertyValue,
     maxPriceByDeposit,
     maxPriceByServiceability,
     maxPrice,
     whichConstraint,
+    minPriceForLvr,
+    isFeasible,
     actualPaymentAtMax,
   };
 }

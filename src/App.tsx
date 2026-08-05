@@ -110,6 +110,7 @@ const DEFAULT_STATE: AppState = {
   mortgageRatePct: null, // follow the published rate for the selected purpose
   loanTermYears: getAssumption('loanTermYears')!.defaultValue,
   rentalShadingPct: getAssumption('rentalShadingPct')!.defaultValue,
+  maxLvrPct: getAssumption('maxLvrPct')!.defaultValue,
   extraRepaymentMonthly: 0,
   repaymentSharePct: getAssumption('repaymentSharePct')!.defaultValue,
   upfrontCostsPct: getAssumption('upfrontCostsPct')!.defaultValue,
@@ -286,6 +287,8 @@ export default function App() {
         depositPct: state.depositPct,
         upfrontCostsPct: state.upfrontCostsPct,
         assessedRentalIncomeAnnual,
+        lmiCost: state.lmiCost,
+        maxLvrPct: state.maxLvrPct,
       }),
     [state, mortgageRatePct, assessedRentalIncomeAnnual],
   );
@@ -424,6 +427,8 @@ export default function App() {
                   bufferPp={APRA_BUFFER_PP}
                   depositPct={state.depositPct}
                   isInvestment={isInvestment}
+                  lmiCost={state.lmiCost}
+                  maxLvrPct={state.maxLvrPct}
                   assessedRentWeekly={assessedRentalIncomeAnnual / 52}
                   rentalShadingPct={state.rentalShadingPct}
                   rentalIncomeWeekly={state.rentalIncomeWeekly}

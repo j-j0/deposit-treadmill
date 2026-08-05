@@ -36,6 +36,7 @@ interface Props {
 type SliderKey =
   | 'mortgageRatePct'
   | 'rentalShadingPct'
+  | 'maxLvrPct'
   | 'loanTermYears'
   | 'extraRepaymentMonthly'
   | 'repaymentSharePct'
@@ -248,6 +249,7 @@ export function AssumptionsPanel({
       {slider('mortgageRatePct')}
       {slider('loanTermYears')}
       {state.purpose === 'investment' && slider('rentalShadingPct')}
+      {state.depositPct < 20 && slider('maxLvrPct')}
       {slider('extraRepaymentMonthly')}
       {slider('repaymentSharePct')}
       {slider('upfrontCostsPct')}

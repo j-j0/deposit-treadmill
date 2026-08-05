@@ -15,7 +15,7 @@ import {
   type ResolvedGrowth,
 } from './data/index';
 import { dataTypeFor, type DisplayPropertyType } from './data/types';
-import { MORTGAGE_RATE } from './data/generated';
+import { MORTGAGE_RATES } from './data/assumptions';
 import { calculateTreadmill } from './lib/treadmill';
 import { projectTrajectory } from './lib/projection';
 import { simulateMortgage } from './lib/mortgage';
@@ -93,6 +93,7 @@ const TABS: readonly TabDef<TabId>[] = [
 
 const DEFAULT_STATE: AppState = {
   tab: 'deposit',
+  purpose: 'owner',
   regionId: DEFAULT_REGION_ID,
   propertyType: 'house',
   income: DEFAULT_HOUSEHOLD_INCOME,
@@ -106,8 +107,9 @@ const DEFAULT_STATE: AppState = {
   depositPct: getAssumption('depositPct')!.defaultValue,
   savingsReturnPct: getAssumption('savingsReturnPct')!.defaultValue,
 
-  mortgageRatePct: MORTGAGE_RATE.valuePct,
+  mortgageRatePct: null, // follow the published rate for the selected purpose
   loanTermYears: getAssumption('loanTermYears')!.defaultValue,
+  rentalShadingPct: getAssumption('rentalShadingPct')!.defaultValue,
   extraRepaymentMonthly: 0,
   repaymentSharePct: getAssumption('repaymentSharePct')!.defaultValue,
   upfrontCostsPct: getAssumption('upfrontCostsPct')!.defaultValue,
@@ -203,20 +205,37 @@ export default function App() {
   const treadmill = useMemo(() => calculateTreadmill(inputs), [inputs]);
   const projection = useMemo(() => projectTrajectory(inputs), [inputs]);
 
+  const isInvestment = state.purpose === 'investment';
+
+  // The rate follows the purpose unless the user has pinned their own.
+  const publishedRate = isInvestment ? MORTGAGE_RATES.investment : MORTGAGE_RATES.owner;
+  const mortgageRatePct = state.mortgageRatePct ?? publishedRate;
+
+  /**
+   * Rent the LENDER will count. Zero for an owner-occupier even when they plan
+   * to let a room: banks assess rent evidenced by a lease on a tenanted
+   * property, and informal board from a housemate does not enter serviceability
+   * — however much it helps repay the loan in practice, which the mortgage
+   * panel does model.
+   */
+  const assessedRentalIncomeAnnual = isInvestment
+    ? state.rentalIncomeWeekly * 52 * (state.rentalShadingPct / 100)
+    : 0;
+
   const loan = Math.max(0, median * (1 - state.depositPct / 100) + state.lmiCost);
 
   const mortgage = useMemo(
     () =>
       simulateMortgage({
         principal: loan,
-        annualRatePct: state.mortgageRatePct,
+        annualRatePct: mortgageRatePct,
         termYears: state.loanTermYears,
         extraMonthly: state.extraRepaymentMonthly,
         offsetIncomeMonthly: (state.rentalIncomeWeekly * 52) / 12,
       }),
     [
       loan,
-      state.mortgageRatePct,
+      mortgageRatePct,
       state.loanTermYears,
       state.extraRepaymentMonthly,
       state.rentalIncomeWeekly,
@@ -239,7 +258,7 @@ export default function App() {
       years: projection.outcome.years,
       result: simulateMortgage({
         principal: goalLoan,
-        annualRatePct: state.mortgageRatePct,
+        annualRatePct: mortgageRatePct,
         termYears: state.loanTermYears,
         extraMonthly: state.extraRepaymentMonthly,
         offsetIncomeMonthly: (state.rentalIncomeWeekly * 52) / 12,
@@ -249,7 +268,7 @@ export default function App() {
     projection,
     state.depositPct,
     state.lmiCost,
-    state.mortgageRatePct,
+    mortgageRatePct,
     state.loanTermYears,
     state.extraRepaymentMonthly,
     state.rentalIncomeWeekly,
@@ -260,14 +279,15 @@ export default function App() {
       calculateAffordability({
         annualIncome: state.income,
         repaymentSharePct: state.repaymentSharePct,
-        mortgageRatePct: state.mortgageRatePct,
+        mortgageRatePct,
         bufferPp: APRA_BUFFER_PP,
         termYears: state.loanTermYears,
         savings: state.currentSavings,
         depositPct: state.depositPct,
         upfrontCostsPct: state.upfrontCostsPct,
+        assessedRentalIncomeAnnual,
       }),
-    [state],
+    [state, mortgageRatePct, assessedRentalIncomeAnnual],
   );
 
   const impliedRent = impliedWeeklyRent(region, dataType);
@@ -282,7 +302,7 @@ export default function App() {
         depositPct: state.depositPct,
         upfrontCostsPct: state.upfrontCostsPct,
         lmiCost: state.lmiCost,
-        mortgageRatePct: state.mortgageRatePct,
+        mortgageRatePct,
         termYears: state.loanTermYears,
         extraMonthly: state.extraRepaymentMonthly,
         rentalIncomeWeekly: state.rentalIncomeWeekly,
@@ -293,7 +313,7 @@ export default function App() {
         savingsReturnPct: state.savingsReturnPct,
         horizonYears: state.horizonYears,
       }),
-    [median, state, growth, ownershipUsed, rentWeeklyUsed],
+    [median, state, growth, ownershipUsed, rentWeeklyUsed, mortgageRatePct],
   );
 
   const onChange = (patch: Partial<AppState>) =>
@@ -385,7 +405,7 @@ export default function App() {
                   loan={loan}
                   price={median}
                   lmiCost={state.lmiCost}
-                  mortgageRatePct={state.mortgageRatePct}
+                  mortgageRatePct={mortgageRatePct}
                   loanTermYears={state.loanTermYears}
                   monthlyIncome={state.income / 12}
                   rentalIncomeWeekly={state.rentalIncomeWeekly}
@@ -400,9 +420,13 @@ export default function App() {
                   regionName={region.name}
                   propertyTypeLabel={propertyNoun}
                   repaymentSharePct={state.repaymentSharePct}
-                  mortgageRatePct={state.mortgageRatePct}
+                  mortgageRatePct={mortgageRatePct}
                   bufferPp={APRA_BUFFER_PP}
                   depositPct={state.depositPct}
+                  isInvestment={isInvestment}
+                  assessedRentWeekly={assessedRentalIncomeAnnual / 52}
+                  rentalShadingPct={state.rentalShadingPct}
+                  rentalIncomeWeekly={state.rentalIncomeWeekly}
                 />
               </>
             )}
@@ -413,7 +437,7 @@ export default function App() {
                 horizonYears={state.horizonYears}
                 regionName={region.name}
                 growthProvenance={growth.provenance}
-                mortgageRatePct={state.mortgageRatePct}
+                mortgageRatePct={mortgageRatePct}
                 rentWeeklyUsed={rentWeeklyUsed}
                 rentIsDerived={state.rentWeekly === null}
               />
@@ -426,6 +450,7 @@ export default function App() {
                 propertyTypeLabel={propertyNoun + 's'}
                 impliedRentWeekly={impliedRent}
                 ownershipDefaultPct={ownershipDefault}
+                effectiveMortgageRatePct={mortgageRatePct}
                 onChange={onChange}
               />
             )}

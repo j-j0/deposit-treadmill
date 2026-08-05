@@ -25,6 +25,8 @@ interface Props {
   propertyTypeLabel: string;
   /** Implied market rent for the current selection, for the auto note. */
   impliedRentWeekly: number | null;
+  /** Rate in force — the published one for this purpose, or the user's. */
+  effectiveMortgageRatePct: number;
   /** Type-aware ownership-costs default in force when no override is set. */
   ownershipDefaultPct: number;
   onChange: (patch: Partial<AppState>) => void;
@@ -33,6 +35,7 @@ interface Props {
 /** State keys whose assumptions render as plain sliders. */
 type SliderKey =
   | 'mortgageRatePct'
+  | 'rentalShadingPct'
   | 'loanTermYears'
   | 'extraRepaymentMonthly'
   | 'repaymentSharePct'
@@ -92,16 +95,20 @@ export function AssumptionsPanel({
   propertyTypeLabel,
   impliedRentWeekly,
   ownershipDefaultPct,
+  effectiveMortgageRatePct,
   onChange,
 }: Props) {
   const slider = (id: SliderKey) => {
     const assumption = MORTGAGE_ASSUMPTIONS.concat(RENTING_ASSUMPTIONS).find((a) => a.id === id)!;
+    // mortgageRatePct is nullable (null = follow the published rate for the
+    // selected purpose), so show the rate actually in force.
+    const value = id === 'mortgageRatePct' ? effectiveMortgageRatePct : (state[id] as number);
     return (
       <SliderAssumption
         key={id}
         assumption={assumption}
-        value={state[id]}
-        onChange={(value) => onChange({ [id]: value })}
+        value={value}
+        onChange={(v) => onChange({ [id]: v })}
       />
     );
   };
@@ -240,6 +247,7 @@ export function AssumptionsPanel({
       <h2 style={{ marginTop: 28 }}>The mortgage</h2>
       {slider('mortgageRatePct')}
       {slider('loanTermYears')}
+      {state.purpose === 'investment' && slider('rentalShadingPct')}
       {slider('extraRepaymentMonthly')}
       {slider('repaymentSharePct')}
       {slider('upfrontCostsPct')}

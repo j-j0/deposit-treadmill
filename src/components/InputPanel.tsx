@@ -104,6 +104,33 @@ export function InputPanel({ state, regions, region, onChange }: Props) {
         </div>
 
         <div className="field">
+          <span className="field__label" id="purpose-label">
+            Buying to
+          </span>
+          <div className="segmented" role="group" aria-labelledby="purpose-label">
+            <button
+              type="button"
+              aria-pressed={state.purpose === 'owner'}
+              onClick={() => onChange({ purpose: 'owner' })}
+            >
+              Live in
+            </button>
+            <button
+              type="button"
+              aria-pressed={state.purpose === 'investment'}
+              onClick={() => onChange({ purpose: 'investment' })}
+            >
+              Invest
+            </button>
+          </div>
+          <span className="field__hint">
+            {state.purpose === 'investment'
+              ? 'Investor rate applies, and rent counts toward what a lender will approve.'
+              : 'Owner-occupier rate. Room income helps repay the loan but not the lender’s test.'}
+          </span>
+        </div>
+
+        <div className="field">
           <label htmlFor="income">Household income (before tax, per year)</label>
           <div className="field__prefix-wrap">
             <span className="field__prefix" aria-hidden="true">

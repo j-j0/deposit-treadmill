@@ -143,40 +143,44 @@ async function fetchCashRate() {
  * borrower opening a mortgage today would actually face, which is what the
  * mortgage panel models.
  */
-async function fetchMortgageRate() {
+async function fetchMortgageRates() {
   const rows = parseCsv(await get(RBA_F6, 'RBA F6'));
 
   const titleRow = rows.find((r) => r[0]?.trim() === 'Title');
   if (!titleRow) throw new Error('RBA F6: no "Title" row found');
 
-  const wanted = ['new loans', 'owner-occupied', 'variable', 'all institutions'];
-  const col = titleRow.findIndex((c) => {
-    const t = (c || '').toLowerCase();
-    return wanted.every((w) => t.includes(w));
-  });
-  if (col < 0) throw new Error('RBA F6: owner-occupier new-loan variable column not found');
-
   const headerIdx = rows.findIndex((r) => r[0]?.trim() === 'Series ID');
   if (headerIdx < 0) throw new Error('RBA F6: no "Series ID" row found');
 
-  for (let i = rows.length - 1; i > headerIdx; i--) {
-    const raw = rows[i][col]?.trim();
-    const date = rows[i][0]?.trim();
-    if (!raw || !date) continue;
-    const value = Number(raw);
-    if (!Number.isFinite(value)) continue;
+  const pick = (segment) => {
+    const wanted = ['new loans', segment, 'variable', 'all institutions'];
+    const col = titleRow.findIndex((c) => {
+      const t = (c || '').toLowerCase();
+      return wanted.every((w) => t.includes(w));
+    });
+    if (col < 0) throw new Error(`RBA F6: no "${segment}" new-loan variable column found`);
 
-    // F6 dates are "31/05/2026".
-    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(date);
-    if (!m) continue;
+    for (let i = rows.length - 1; i > headerIdx; i--) {
+      const raw = rows[i][col]?.trim();
+      const date = rows[i][0]?.trim();
+      if (!raw || !date) continue;
+      const value = Number(raw);
+      if (!Number.isFinite(value)) continue;
 
-    return {
-      valuePct: value,
-      effectiveISO: `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`,
-      effectiveLabel: date,
-    };
-  }
-  throw new Error('RBA F6: no usable mortgage rate observation found');
+      // F6 dates are "31/05/2026".
+      const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(date);
+      if (!m) continue;
+
+      return {
+        valuePct: value,
+        effectiveISO: `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`,
+        effectiveLabel: date,
+      };
+    }
+    throw new Error(`RBA F6: no usable ${segment} rate observation found`);
+  };
+
+  return { owner: pick('owner-occupied'), investor: pick('investment') };
 }
 
 // ---------------------------------------------------------------- ABS
@@ -286,7 +290,7 @@ function humanPeriod(p) {
   return p;
 }
 
-function render({ cashRate, mortgageRate, awe, saving, crosscheck, generatedAt }) {
+function render({ cashRate, mortgageRates, awe, saving, crosscheck, generatedAt }) {
   const q = (s) => `'${String(s).replace(/'/g, "\\'")}'`;
   return `// GENERATED FILE — DO NOT EDIT BY HAND.
 //
@@ -311,9 +315,19 @@ export const CASH_RATE = {
  * Source: RBA statistical table F6 (housing lending rates).
  */
 export const MORTGAGE_RATE = {
-  valuePct: ${mortgageRate.valuePct},
-  effectiveISO: ${q(mortgageRate.effectiveISO)},
-  effectiveLabel: ${q(mortgageRate.effectiveLabel)},
+  valuePct: ${mortgageRates.owner.valuePct},
+  effectiveISO: ${q(mortgageRates.owner.effectiveISO)},
+  effectiveLabel: ${q(mortgageRates.owner.effectiveLabel)},
+} as const;
+
+/**
+ * Investor variable rate on NEW loans, all institutions. Investment lending
+ * carries a premium over owner-occupier; both come from the same F6 table.
+ */
+export const MORTGAGE_RATE_INVESTOR = {
+  valuePct: ${mortgageRates.investor.valuePct},
+  effectiveISO: ${q(mortgageRates.investor.effectiveISO)},
+  effectiveLabel: ${q(mortgageRates.investor.effectiveLabel)},
 } as const;
 
 /** ABS Average Weekly Earnings: FT adult AWOTE, persons, seasonally adjusted. */
@@ -351,9 +365,9 @@ ${crosscheck.prices
 async function main() {
   console.log('Refreshing supporting figures from official APIs…\n');
 
-  const [cashRate, mortgageRate, awe, saving, crosscheck] = await Promise.all([
+  const [cashRate, mortgageRates, awe, saving, crosscheck] = await Promise.all([
     fetchCashRate(),
-    fetchMortgageRate(),
+    fetchMortgageRates(),
     fetchAwe(),
     fetchSavingRatio(),
     fetchMeanDwellingPrices(),
@@ -364,12 +378,20 @@ async function main() {
   const checks = [
     [cashRate.valuePct >= 0 && cashRate.valuePct <= 20, `cash rate ${cashRate.valuePct}% out of range`],
     [
-      mortgageRate.valuePct >= 1 && mortgageRate.valuePct <= 15,
-      `mortgage rate ${mortgageRate.valuePct}% out of range`,
+      mortgageRates.owner.valuePct >= 1 && mortgageRates.owner.valuePct <= 15,
+      `owner-occupier rate ${mortgageRates.owner.valuePct}% out of range`,
     ],
     [
-      mortgageRate.valuePct > cashRate.valuePct,
-      `mortgage rate ${mortgageRate.valuePct}% not above cash rate ${cashRate.valuePct}% — wrong column?`,
+      mortgageRates.investor.valuePct >= 1 && mortgageRates.investor.valuePct <= 15,
+      `investor rate ${mortgageRates.investor.valuePct}% out of range`,
+    ],
+    [
+      mortgageRates.owner.valuePct > cashRate.valuePct,
+      `mortgage rate ${mortgageRates.owner.valuePct}% not above cash rate ${cashRate.valuePct}% — wrong column?`,
+    ],
+    [
+      mortgageRates.investor.valuePct >= mortgageRates.owner.valuePct,
+      `investor rate ${mortgageRates.investor.valuePct}% below owner-occupier ${mortgageRates.owner.valuePct}% — columns swapped?`,
     ],
     [awe.weekly > 500 && awe.weekly < 10000, `AWE ${awe.weekly}/wk out of range`],
     [saving.pct > -20 && saving.pct < 50, `saving ratio ${saving.pct}% out of range`],
@@ -388,7 +410,7 @@ async function main() {
 
   console.log(`  RBA cash rate      ${cashRate.valuePct}%  (as at ${cashRate.effectiveLabel})`);
   console.log(
-    `  RBA mortgage rate  ${mortgageRate.valuePct}%  (OO variable, new loans, ${mortgageRate.effectiveLabel})`,
+    `  RBA mortgage rate  ${mortgageRates.owner.valuePct}% owner-occupier / ${mortgageRates.investor.valuePct}% investor  (new loans, ${mortgageRates.owner.effectiveLabel})`,
   );
   console.log(`  ABS AWE            $${awe.weekly}/wk  (${humanPeriod(awe.period)})`);
   console.log(`  ABS saving ratio   ${saving.pct}%  (${humanPeriod(saving.period)})`);
@@ -398,7 +420,7 @@ async function main() {
 
   const contents = render({
     cashRate,
-    mortgageRate,
+    mortgageRates,
     awe,
     saving,
     crosscheck,

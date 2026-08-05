@@ -21,6 +21,12 @@ interface Props {
   mortgageRatePct: number;
   bufferPp: number;
   depositPct: number;
+  isInvestment: boolean;
+  /** Rent the lender counts, per week, after shading. Zero for owner-occupiers. */
+  assessedRentWeekly: number;
+  rentalShadingPct: number;
+  /** What the user entered, before shading — used to explain the haircut. */
+  rentalIncomeWeekly: number;
 }
 
 export function AffordabilityPanel({
@@ -32,6 +38,10 @@ export function AffordabilityPanel({
   mortgageRatePct,
   bufferPp,
   depositPct,
+  isInvestment,
+  assessedRentWeekly,
+  rentalShadingPct,
+  rentalIncomeWeekly,
 }: Props) {
   const ratio = result.maxPrice > 0 ? medianPrice / result.maxPrice : null;
 
@@ -44,12 +54,18 @@ export function AffordabilityPanel({
           <div className="goalpost__label">Repayment budget</div>
           <div className="goalpost__value">{currency(result.monthlyBudget)}/mo</div>
           <div className="goalpost__meta">
-            {repaymentSharePct}% of gross income — the conventional “stress” line, <AssumptionsLink>editable</AssumptionsLink>
+            {currency(result.monthlyBudgetFromIncome)} from income ({repaymentSharePct}% of gross,{' '}
+            <AssumptionsLink>editable</AssumptionsLink>)
+            {result.monthlyBudgetFromRent > 0 && (
+              <> + {currency(result.monthlyBudgetFromRent)} from assessed rent</>
+            )}
           </div>
         </div>
 
         <div className="goalpost">
-          <div className="goalpost__label">Assessed at</div>
+          <div className="goalpost__label">
+            Assessed at{isInvestment ? ' (investor rate)' : ''}
+          </div>
           <div className="goalpost__value">{percent(result.assessmentRatePct, 2)}</div>
           <div className="goalpost__meta">
             Your rate + APRA’s {bufferPp.toFixed(1)}-point serviceability buffer
@@ -61,9 +77,20 @@ export function AffordabilityPanel({
           <div className="goalpost__label">Estimated ceiling</div>
           <div className="goalpost__value">{currency(result.maxPrice)}</div>
           <div className="goalpost__meta">
-            {result.whichConstraint === 'deposit'
-              ? `Limited by your deposit: savings must cover ${depositPct}% plus upfront costs`
-              : 'Limited by serviceability: the repayment budget caps the loan'}
+            {result.whichConstraint === 'deposit' ? (
+              // Without naming the other limit, changes that only move
+              // serviceability (rental income, the investor rate) look like
+              // they did nothing at all.
+              <>
+                Limited by your deposit: savings must cover {depositPct}% plus upfront costs.
+                Serviceability alone would stretch to {currency(result.maxPriceByServiceability)}.
+              </>
+            ) : (
+              <>
+                Limited by serviceability: the repayment budget caps the loan. Your deposit would
+                stretch to {currency(result.maxPriceByDeposit)}.
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -87,6 +114,28 @@ export function AffordabilityPanel({
           </>
         )}
       </p>
+
+      {isInvestment ? (
+        <div className="disclosure">
+          <strong>Because this is an investment purchase:</strong> the rate is the published
+          investor rate<Citation sourceId="rba-f6" />, which runs above owner-occupier lending —
+          and the rent counts toward serviceability. Lenders shade it, here to{' '}
+          {rentalShadingPct}%<AssumptionsLink> (editable)</AssumptionsLink>, for vacancy,
+          management and repairs: {currency(rentalIncomeWeekly)}/wk becomes{' '}
+          {currency(assessedRentWeekly)}/wk of assessable income. Not modelled: negative gearing,
+          land tax, or tax on the rental profit — all of which move the real answer.
+        </div>
+      ) : (
+        rentalIncomeWeekly > 0 && (
+          <div className="disclosure">
+            <strong>Your room income is not in this figure, deliberately.</strong> Lenders assess
+            rent evidenced by a lease on a tenanted property; informal board from a housemate does
+            not count toward serviceability, however reliably it arrives. It still repays the loan
+            faster, which is why it appears on the mortgage panel above but not here. Switch to an
+            investment purchase and it enters the test.
+          </div>
+        )
+      )}
 
       <details className="disclosure-details">
         <summary>What this estimate is and is not</summary>

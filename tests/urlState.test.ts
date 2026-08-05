@@ -9,6 +9,7 @@ import {
 
 const defaults: AppState = {
   tab: 'deposit',
+  purpose: 'owner',
   regionId: 'sydney',
   propertyType: 'house',
   income: 106_657,
@@ -18,8 +19,9 @@ const defaults: AppState = {
   customGrowthPct: 5,
   depositPct: 20,
   savingsReturnPct: 4.35,
-  mortgageRatePct: 6.2,
+  mortgageRatePct: null,
   loanTermYears: 30,
+  rentalShadingPct: 80,
   extraRepaymentMonthly: 0,
   repaymentSharePct: 30,
   upfrontCostsPct: 5.5,
@@ -36,6 +38,9 @@ describe('encode/decode round trip', () => {
     const state: AppState = {
       ...defaults,
       tab: 'rentvsbuy',
+      purpose: 'investment',
+      mortgageRatePct: 6.75,
+      rentalShadingPct: 75,
       regionId: 'perth',
       propertyType: 'townhouse',
       income: 180_000,
@@ -78,8 +83,14 @@ describe('backwards compatibility with v1 links', () => {
     expect(decoded.income).toBe(120_000);
     // Everything v1 never knew about falls back to a usable default.
     expect(decoded.tab).toBe('deposit');
-    expect(decoded.mortgageRatePct).toBe(6.2);
     expect(decoded.horizonYears).toBe(30);
+    expect(decoded.purpose).toBe('owner');
+    expect(decoded.rentalShadingPct).toBe(80);
+    // Auto-derived fields stay null, meaning "follow the published figure" —
+    // for the rate, that is the owner-occupier or investor rate for the
+    // selected purpose, so a v1 link picks up today's rate rather than the one
+    // that happened to be current when it was shared.
+    expect(decoded.mortgageRatePct).toBeNull();
     expect(decoded.rentWeekly).toBeNull();
   });
 });

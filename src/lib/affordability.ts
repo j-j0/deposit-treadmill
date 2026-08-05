@@ -29,6 +29,16 @@ export interface AffordabilityInputs {
   depositPct: number;
   /** Upfront transaction costs as percent of price (e.g. 5.5). */
   upfrontCostsPct: number;
+  /**
+   * Rental income the lender will actually count, AUD per year, already
+   * shaded for vacancy and costs.
+   *
+   * Zero for an owner-occupier even when they plan to let a room: lenders
+   * assess rent evidenced by a lease on a tenanted property. Informal board
+   * from a housemate does not enter serviceability, however much it helps the
+   * borrower in practice. The caller enforces that distinction.
+   */
+  assessedRentalIncomeAnnual: number;
 }
 
 export type AffordabilityConstraint = 'deposit' | 'serviceability';
@@ -36,8 +46,12 @@ export type AffordabilityConstraint = 'deposit' | 'serviceability';
 export interface AffordabilityResult {
   /** The rate serviceability is tested at: mortgage rate + buffer. */
   assessmentRatePct: number;
-  /** Monthly repayment budget implied by the income share. */
+  /** Monthly repayment budget: the income share plus any assessed rent. */
   monthlyBudget: number;
+  /** The salary component of that budget. */
+  monthlyBudgetFromIncome: number;
+  /** The rental component — zero unless this is an investment purchase. */
+  monthlyBudgetFromRent: number;
   /** Largest loan whose ASSESSED repayment fits the budget. */
   maxLoanByServiceability: number;
   /**
@@ -77,10 +91,17 @@ export function calculateAffordability(inputs: AffordabilityInputs): Affordabili
     savings,
     depositPct,
     upfrontCostsPct,
+    assessedRentalIncomeAnnual,
   } = inputs;
 
   const assessmentRatePct = mortgageRatePct + bufferPp;
-  const monthlyBudget = (annualIncome * (repaymentSharePct / 100)) / 12;
+
+  // Salary contributes only the chosen share, because the rest funds living
+  // costs. Shaded rent contributes in full — the shading is what accounts for
+  // vacancy and running costs, so discounting it twice would understate it.
+  const monthlyBudgetFromIncome = (annualIncome * (repaymentSharePct / 100)) / 12;
+  const monthlyBudgetFromRent = Math.max(0, assessedRentalIncomeAnnual) / 12;
+  const monthlyBudget = monthlyBudgetFromIncome + monthlyBudgetFromRent;
 
   const maxLoanByServiceability = principalFromPayment(
     monthlyBudget,
@@ -108,6 +129,8 @@ export function calculateAffordability(inputs: AffordabilityInputs): Affordabili
   return {
     assessmentRatePct,
     monthlyBudget,
+    monthlyBudgetFromIncome,
+    monthlyBudgetFromRent,
     maxLoanByServiceability,
     maxPriceByDeposit,
     maxPriceByServiceability,

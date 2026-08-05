@@ -7,7 +7,7 @@
 // regions.capitals.ts is transcribed by hand from the Cotality Home Value Index,
 // which has no free API — see scripts/refresh-data.mjs for why.
 
-export const GENERATED_AT = '2026-08-05T09:36:55.404Z';
+export const GENERATED_AT = '2026-08-05T10:43:34.609Z';
 
 /** RBA cash rate target. Source: RBA statistical table F1. */
 export const CASH_RATE = {
@@ -22,6 +22,16 @@ export const CASH_RATE = {
  */
 export const MORTGAGE_RATE = {
   valuePct: 6.2,
+  effectiveISO: '2026-05-31',
+  effectiveLabel: '31/05/2026',
+} as const;
+
+/**
+ * Investor variable rate on NEW loans, all institutions. Investment lending
+ * carries a premium over owner-occupier; both come from the same F6 table.
+ */
+export const MORTGAGE_RATE_INVESTOR = {
+  valuePct: 6.4,
   effectiveISO: '2026-05-31',
   effectiveLabel: '31/05/2026',
 } as const;

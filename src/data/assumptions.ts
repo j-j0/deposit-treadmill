@@ -1,5 +1,11 @@
 import type { Assumption, DisplayPropertyType } from './types';
-import { AWE, CASH_RATE, MORTGAGE_RATE, SAVING_RATIO } from './generated';
+import {
+  AWE,
+  CASH_RATE,
+  MORTGAGE_RATE,
+  MORTGAGE_RATE_INVESTOR,
+  SAVING_RATIO,
+} from './generated';
 
 /**
  * Assumptions: the numbers the model needs that no source can supply, because
@@ -132,6 +138,17 @@ export const MORTGAGE_ASSUMPTIONS: readonly Assumption[] = [
     step: 1,
   },
   {
+    id: 'rentalShadingPct',
+    label: 'Rental income a lender will count',
+    rationale:
+      'Lenders do not count rent at face value — they shade it, typically to around 80%, to allow for vacancy, management fees, rates and repairs. The exact haircut varies by lender and is not published anywhere, so this is an industry rule of thumb rather than a sourced figure. It only applies to investment purchases assessed on a lease.',
+    defaultValue: 80,
+    unit: 'percent',
+    min: 0,
+    max: 100,
+    step: 5,
+  },
+  {
     id: 'upfrontCostsPct',
     label: 'Upfront transaction costs',
     rationale:
@@ -197,6 +214,15 @@ export function ownershipCostsDefaultFor(type: DisplayPropertyType): number {
  * October 2021. Source: apra-buffer.
  */
 export const APRA_BUFFER_PP = 3.0;
+
+/**
+ * The rate that applies to each purchase purpose. Investment lending carries a
+ * premium; both figures come from the same RBA F6 table and auto-refresh.
+ */
+export const MORTGAGE_RATES = {
+  owner: MORTGAGE_RATE.valuePct,
+  investment: MORTGAGE_RATE_INVESTOR.valuePct,
+} as const;
 export const APRA_BUFFER_SOURCE_ID = 'apra-buffer';
 
 /**

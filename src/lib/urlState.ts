@@ -24,9 +24,15 @@ export const TAB_IDS: readonly TabId[] = [
   'sources',
 ];
 
+/** Owner-occupier or investment purchase — changes the rate and the lender's test. */
+export type PurchasePurpose = 'owner' | 'investment';
+
+export const PURCHASE_PURPOSES: readonly PurchasePurpose[] = ['owner', 'investment'];
+
 export interface AppState {
   /** Which section is open. In the URL so a shared link lands where you meant. */
   tab: TabId;
+  purpose: PurchasePurpose;
   regionId: string;
   propertyType: DisplayPropertyType;
   income: number;
@@ -38,8 +44,10 @@ export interface AppState {
   savingsReturnPct: number;
 
   // v2 — mortgage
-  mortgageRatePct: number;
+  /** Null = follow the published rate for the selected purpose. */
+  mortgageRatePct: number | null;
   loanTermYears: number;
+  rentalShadingPct: number;
   extraRepaymentMonthly: number;
   repaymentSharePct: number;
   upfrontCostsPct: number;
@@ -58,6 +66,8 @@ export interface AppState {
 
 const KEYS = {
   tab: 'tab',
+  purpose: 'p',
+  rentalShadingPct: 'sh',
   regionId: 'r',
   propertyType: 't',
   income: 'i',
@@ -94,6 +104,7 @@ export function encodeState(state: AppState): string {
     params.set(key, digits > 0 ? value.toFixed(digits) : String(Math.round(value)));
 
   params.set(KEYS.tab, state.tab);
+  params.set(KEYS.purpose, state.purpose);
   params.set(KEYS.regionId, state.regionId);
   params.set(KEYS.propertyType, state.propertyType);
   setNum(KEYS.income, state.income);
@@ -104,8 +115,8 @@ export function encodeState(state: AppState): string {
   setNum(KEYS.depositPct, state.depositPct, 2);
   setNum(KEYS.savingsReturnPct, state.savingsReturnPct, 2);
 
-  setNum(KEYS.mortgageRatePct, state.mortgageRatePct, 2);
   setNum(KEYS.loanTermYears, state.loanTermYears);
+  setNum(KEYS.rentalShadingPct, state.rentalShadingPct);
   setNum(KEYS.extraRepaymentMonthly, state.extraRepaymentMonthly);
   setNum(KEYS.repaymentSharePct, state.repaymentSharePct);
   setNum(KEYS.upfrontCostsPct, state.upfrontCostsPct, 2);
@@ -115,6 +126,7 @@ export function encodeState(state: AppState): string {
   setNum(KEYS.horizonYears, state.horizonYears);
 
   // Auto-derived fields: encoded only when the user has overridden them.
+  if (state.mortgageRatePct !== null) setNum(KEYS.mortgageRatePct, state.mortgageRatePct, 2);
   if (state.rentWeekly !== null) setNum(KEYS.rentWeekly, state.rentWeekly);
   if (state.ownershipCostsPct !== null) setNum(KEYS.ownershipCostsPct, state.ownershipCostsPct, 2);
 
@@ -156,6 +168,11 @@ export function decodeState(hash: string, defaults: AppState): AppState {
 
   const params = new URLSearchParams(cleaned);
 
+  const rawPurpose = params.get(KEYS.purpose);
+  const purpose = PURCHASE_PURPOSES.includes(rawPurpose as PurchasePurpose)
+    ? (rawPurpose as PurchasePurpose)
+    : defaults.purpose;
+
   const rawTab = params.get(KEYS.tab);
   const tab = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : defaults.tab;
 
@@ -171,6 +188,7 @@ export function decodeState(hash: string, defaults: AppState): AppState {
 
   return {
     tab,
+    purpose,
     regionId: params.get(KEYS.regionId) ?? defaults.regionId,
     propertyType,
     income: num(params, KEYS.income, defaults.income),
@@ -181,8 +199,9 @@ export function decodeState(hash: string, defaults: AppState): AppState {
     depositPct: num(params, KEYS.depositPct, defaults.depositPct),
     savingsReturnPct: num(params, KEYS.savingsReturnPct, defaults.savingsReturnPct),
 
-    mortgageRatePct: num(params, KEYS.mortgageRatePct, defaults.mortgageRatePct),
+    mortgageRatePct: nullableNum(params, KEYS.mortgageRatePct),
     loanTermYears: num(params, KEYS.loanTermYears, defaults.loanTermYears),
+    rentalShadingPct: num(params, KEYS.rentalShadingPct, defaults.rentalShadingPct),
     extraRepaymentMonthly: num(params, KEYS.extraRepaymentMonthly, defaults.extraRepaymentMonthly),
     repaymentSharePct: num(params, KEYS.repaymentSharePct, defaults.repaymentSharePct),
     upfrontCostsPct: num(params, KEYS.upfrontCostsPct, defaults.upfrontCostsPct),

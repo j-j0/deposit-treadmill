@@ -15,6 +15,7 @@ const base: AffordabilityInputs = {
   savings: 150_000,
   depositPct: 20,
   upfrontCostsPct: 5.5,
+  assessedRentalIncomeAnnual: 0,
 };
 
 describe('principalFromPayment', () => {
@@ -66,6 +67,50 @@ describe('calculateAffordability', () => {
     expect(r.actualPaymentAtMax).toBeCloseTo(monthlyPayment(loan, 6.2, 30), 4);
     // Actual repayment sits under the assessed budget — that's the buffer's headroom.
     expect(r.actualPaymentAtMax).toBeLessThan(r.monthlyBudget);
+  });
+
+  it('assessed rental income raises the budget and the ceiling', () => {
+    // $743/wk shaded to 80% = $30,908/yr of assessable rent.
+    const shaded = 743 * 52 * 0.8;
+    const withRent = calculateAffordability({
+      ...base,
+      savings: 600_000, // serviceability-bound, so rent actually moves the answer
+      assessedRentalIncomeAnnual: shaded,
+    });
+    const without = calculateAffordability({ ...base, savings: 600_000 });
+
+    expect(withRent.monthlyBudgetFromRent).toBeCloseTo(shaded / 12, 6);
+    expect(withRent.monthlyBudgetFromIncome).toBe(without.monthlyBudget);
+    expect(withRent.monthlyBudget).toBeCloseTo(without.monthlyBudget + shaded / 12, 6);
+    expect(withRent.maxPrice).toBeGreaterThan(without.maxPrice);
+  });
+
+  it('shaded rent contributes in full — the shading is the haircut, applied once', () => {
+    // The income share must NOT also be applied to rent: that would discount
+    // vacancy and costs twice.
+    const rent = 40_000;
+    const r = calculateAffordability({ ...base, assessedRentalIncomeAnnual: rent });
+    expect(r.monthlyBudgetFromRent).toBeCloseTo(rent / 12, 6);
+    expect(r.monthlyBudgetFromRent).not.toBeCloseTo((rent * 0.3) / 12, 2);
+  });
+
+  it('zero assessed rent leaves the result identical to the owner-occupier case', () => {
+    const a = calculateAffordability({ ...base, assessedRentalIncomeAnnual: 0 });
+    const b = calculateAffordability(base);
+    expect(a).toEqual(b);
+    expect(a.monthlyBudgetFromRent).toBe(0);
+  });
+
+  it('a negative assessed rent cannot shrink the budget', () => {
+    const r = calculateAffordability({ ...base, assessedRentalIncomeAnnual: -50_000 });
+    expect(r.monthlyBudgetFromRent).toBe(0);
+    expect(r.monthlyBudget).toBe(r.monthlyBudgetFromIncome);
+  });
+
+  it('the investor rate premium lowers the ceiling, all else equal', () => {
+    const owner = calculateAffordability({ ...base, savings: 600_000, mortgageRatePct: 6.2 });
+    const investor = calculateAffordability({ ...base, savings: 600_000, mortgageRatePct: 6.4 });
+    expect(investor.maxLoanByServiceability).toBeLessThan(owner.maxLoanByServiceability);
   });
 
   it('handles zero income without dividing the universe', () => {

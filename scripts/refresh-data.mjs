@@ -39,6 +39,7 @@ const UA =
 
 const ABS_BASE = 'https://data.api.abs.gov.au/rest/data/ABS';
 const RBA_F1 = 'https://www.rba.gov.au/statistics/tables/csv/f1-data.csv';
+const RBA_F6 = 'https://www.rba.gov.au/statistics/tables/csv/f6-data.csv';
 
 async function get(url, label) {
   const res = await fetch(url, { headers: { 'User-Agent': UA } });
@@ -135,6 +136,49 @@ async function fetchCashRate() {
   throw new Error('RBA F1: no usable cash rate observation found');
 }
 
+/**
+ * F6 is the housing lending rates table. The column is located by its full
+ * title rather than position — RBA has reordered columns historically. We take
+ * the owner-occupier variable rate on NEW loans (all institutions): the rate a
+ * borrower opening a mortgage today would actually face, which is what the
+ * mortgage panel models.
+ */
+async function fetchMortgageRate() {
+  const rows = parseCsv(await get(RBA_F6, 'RBA F6'));
+
+  const titleRow = rows.find((r) => r[0]?.trim() === 'Title');
+  if (!titleRow) throw new Error('RBA F6: no "Title" row found');
+
+  const wanted = ['new loans', 'owner-occupied', 'variable', 'all institutions'];
+  const col = titleRow.findIndex((c) => {
+    const t = (c || '').toLowerCase();
+    return wanted.every((w) => t.includes(w));
+  });
+  if (col < 0) throw new Error('RBA F6: owner-occupier new-loan variable column not found');
+
+  const headerIdx = rows.findIndex((r) => r[0]?.trim() === 'Series ID');
+  if (headerIdx < 0) throw new Error('RBA F6: no "Series ID" row found');
+
+  for (let i = rows.length - 1; i > headerIdx; i--) {
+    const raw = rows[i][col]?.trim();
+    const date = rows[i][0]?.trim();
+    if (!raw || !date) continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) continue;
+
+    // F6 dates are "31/05/2026".
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(date);
+    if (!m) continue;
+
+    return {
+      valuePct: value,
+      effectiveISO: `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`,
+      effectiveLabel: date,
+    };
+  }
+  throw new Error('RBA F6: no usable mortgage rate observation found');
+}
+
 // ---------------------------------------------------------------- ABS
 
 async function absLatest(flow) {
@@ -146,6 +190,8 @@ const num = (r) => {
   const v = Number(r.OBS_VALUE);
   return Number.isFinite(v) ? v : null;
 };
+
+// ------------------------------------------------------------------------
 
 /** ABS scales values by UNIT_MULT (3 = thousands). */
 const scaled = (r) => {
@@ -240,7 +286,7 @@ function humanPeriod(p) {
   return p;
 }
 
-function render({ cashRate, awe, saving, crosscheck, generatedAt }) {
+function render({ cashRate, mortgageRate, awe, saving, crosscheck, generatedAt }) {
   const q = (s) => `'${String(s).replace(/'/g, "\\'")}'`;
   return `// GENERATED FILE — DO NOT EDIT BY HAND.
 //
@@ -258,6 +304,16 @@ export const CASH_RATE = {
   valuePct: ${cashRate.valuePct},
   effectiveISO: ${q(cashRate.effectiveISO)},
   effectiveLabel: ${q(cashRate.effectiveLabel)},
+} as const;
+
+/**
+ * Owner-occupier variable mortgage rate on NEW loans, all institutions.
+ * Source: RBA statistical table F6 (housing lending rates).
+ */
+export const MORTGAGE_RATE = {
+  valuePct: ${mortgageRate.valuePct},
+  effectiveISO: ${q(mortgageRate.effectiveISO)},
+  effectiveLabel: ${q(mortgageRate.effectiveLabel)},
 } as const;
 
 /** ABS Average Weekly Earnings: FT adult AWOTE, persons, seasonally adjusted. */
@@ -295,8 +351,9 @@ ${crosscheck.prices
 async function main() {
   console.log('Refreshing supporting figures from official APIs…\n');
 
-  const [cashRate, awe, saving, crosscheck] = await Promise.all([
+  const [cashRate, mortgageRate, awe, saving, crosscheck] = await Promise.all([
     fetchCashRate(),
+    fetchMortgageRate(),
     fetchAwe(),
     fetchSavingRatio(),
     fetchMeanDwellingPrices(),
@@ -306,6 +363,14 @@ async function main() {
   // defence against a silently changed dataflow writing nonsense into the app.
   const checks = [
     [cashRate.valuePct >= 0 && cashRate.valuePct <= 20, `cash rate ${cashRate.valuePct}% out of range`],
+    [
+      mortgageRate.valuePct >= 1 && mortgageRate.valuePct <= 15,
+      `mortgage rate ${mortgageRate.valuePct}% out of range`,
+    ],
+    [
+      mortgageRate.valuePct > cashRate.valuePct,
+      `mortgage rate ${mortgageRate.valuePct}% not above cash rate ${cashRate.valuePct}% — wrong column?`,
+    ],
     [awe.weekly > 500 && awe.weekly < 10000, `AWE ${awe.weekly}/wk out of range`],
     [saving.pct > -20 && saving.pct < 50, `saving ratio ${saving.pct}% out of range`],
     [crosscheck.prices.length === 9, `expected 9 cross-check rows, got ${crosscheck.prices.length}`],
@@ -322,6 +387,9 @@ async function main() {
   }
 
   console.log(`  RBA cash rate      ${cashRate.valuePct}%  (as at ${cashRate.effectiveLabel})`);
+  console.log(
+    `  RBA mortgage rate  ${mortgageRate.valuePct}%  (OO variable, new loans, ${mortgageRate.effectiveLabel})`,
+  );
   console.log(`  ABS AWE            $${awe.weekly}/wk  (${humanPeriod(awe.period)})`);
   console.log(`  ABS saving ratio   ${saving.pct}%  (${humanPeriod(saving.period)})`);
   console.log(
@@ -330,6 +398,7 @@ async function main() {
 
   const contents = render({
     cashRate,
+    mortgageRate,
     awe,
     saving,
     crosscheck,

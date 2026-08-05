@@ -2,6 +2,7 @@ import type { Source } from './types';
 import {
   AWE,
   CASH_RATE,
+  MORTGAGE_RATE,
   SAVING_RATIO,
   ABS_MEAN_DWELLING_PERIOD_LABEL,
   GENERATED_AT,
@@ -42,7 +43,7 @@ export const SOURCES: readonly Source[] = [
     // Transcribed by hand, which is why the staleness check watches it closely.
     autoRefreshed: false,
     note:
-      'Median values for houses, units and dwellings across the eight capital cities, plus 5- and 10-year change in dwelling values. ' +
+      'Median values, 12-month changes and gross rental yields for houses, units and dwellings across the eight capital cities, plus 5- and 10-year change in dwelling values and national rental growth (5.9%). ' +
       'The HVI is a hedonic index: values are composition-adjusted using property attributes rather than being a raw median of whatever sold that month. ' +
       'Figures are taken from the public monthly media release, which is marked © 2026 RP Data Pty Ltd t/as Cotality, Proprietary, and is reproduced here with attribution. ' +
       'This is the only source here that is transcribed by hand — Cotality has no free API, so it cannot be refreshed automatically.',
@@ -115,6 +116,52 @@ export const SOURCES: readonly Source[] = [
       `Cash rate target ${CASH_RATE.valuePct}%. Used as the default return on existing savings. ` +
       'Note this is the cash rate, not a savings account rate — real deposit accounts pay above or below it, which is why the figure is editable. ' +
       'Auto-refreshed from the RBA’s published F1 statistical table.',
+  },
+  {
+    id: 'rba-f6',
+    publisher: 'Reserve Bank of Australia',
+    title: 'Housing Lending Rates — statistical table F6',
+    url: 'https://www.rba.gov.au/statistics/tables/xls/f06hist.xlsx',
+    referencePeriod: `As at ${MORTGAGE_RATE.effectiveLabel}`,
+    releaseDate: MORTGAGE_RATE.effectiveLabel,
+    releaseISO: MORTGAGE_RATE.effectiveISO,
+    cadenceDays: null,
+    accessed: '5 August 2026',
+    autoRefreshed: true,
+    note:
+      `Owner-occupier variable rate on new loans funded in the month, all institutions: ${MORTGAGE_RATE.valuePct}%. ` +
+      'Used as the default mortgage rate. This is an average of loans actually written — your quoted rate will differ with lender, LVR and loan type, which is why the figure is editable. ' +
+      'Auto-refreshed from the RBA’s published F6 statistical table.',
+  },
+  {
+    id: 'apra-buffer',
+    publisher: 'Australian Prudential Regulation Authority',
+    title: 'Macroprudential policy settings — serviceability buffer',
+    url: 'https://www.apra.gov.au/news-and-publications/apra-keeps-macroprudential-policy-settings-steady',
+    referencePeriod: 'Reaffirmed June 2026 (in force since October 2021)',
+    releaseDate: 'June 2026',
+    releaseISO: '2026-06-30',
+    cadenceDays: null,
+    accessed: '5 August 2026',
+    autoRefreshed: false,
+    note:
+      'APRA requires lenders to assess loan serviceability at the loan rate plus a buffer of 3.0 percentage points. ' +
+      'The affordability estimate here applies that buffer, because it is the test a bank will actually run — not because the higher rate is a prediction.',
+  },
+  {
+    id: 'cotality-methodology',
+    publisher: 'Cotality (formerly CoreLogic)',
+    title: 'Residential Property Index Series — methodology',
+    url: 'https://pages.cotality.com/hubfs/CoreLogic%20AU/Indices/clau-residential-property-index-series.pdf',
+    referencePeriod: 'Current methodology',
+    releaseDate: 'Ongoing',
+    releaseISO: '2026-01-01',
+    cadenceDays: null,
+    accessed: '5 August 2026',
+    autoRefreshed: false,
+    note:
+      'Defines the segments this app inherits: a unit is any strata-titled property, explicitly including townhouses and villas. ' +
+      'This is why selecting “Townhouse” here reads the unit segment — Cotality publishes no separate townhouse series, and inventing one would be worse than disclosing the mapping.',
   },
   {
     id: 'abs-rppi-ceased',

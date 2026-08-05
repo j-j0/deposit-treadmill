@@ -479,11 +479,18 @@ button:focus-visible {
 
 .segmented {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 4px;
+}
+
+/* Four-option groups inside a narrow field column: two per row. */
+.field .segmented button {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 0;
 }
 
 .segmented button {

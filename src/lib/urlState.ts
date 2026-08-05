@@ -1,4 +1,4 @@
-import type { PropertyType } from '../data/types';
+import type { DisplayPropertyType } from '../data/types';
 import type { GrowthBasis } from '../data/assumptions';
 
 /**
@@ -6,11 +6,16 @@ import type { GrowthBasis } from '../data/assumptions';
  * restores the reader's exact scenario. The hash (not the query string) keeps it
  * client-side — nothing about someone's savings is ever sent to a server, which
  * matters for a tool that asks about personal finances.
+ *
+ * Two fields are `number | null`, where null means "derive the default from the
+ * selected city and property type" (implied market rent; type-aware ownership
+ * costs). Null is encoded by omission, so links stay short and old v1 links —
+ * which lack every v2 key — decode into a fully working v2 state.
  */
 
 export interface AppState {
   regionId: string;
-  propertyType: PropertyType;
+  propertyType: DisplayPropertyType;
   income: number;
   currentSavings: number;
   monthlySavings: number;
@@ -18,9 +23,27 @@ export interface AppState {
   customGrowthPct: number;
   depositPct: number;
   savingsReturnPct: number;
+
+  // v2 — mortgage
+  mortgageRatePct: number;
+  loanTermYears: number;
+  extraRepaymentMonthly: number;
+  repaymentSharePct: number;
+  upfrontCostsPct: number;
+  lmiCost: number;
+  /** Income from letting rooms (or the whole place) while owning, $/week. */
+  rentalIncomeWeekly: number;
+
+  // v2 — renting side
+  /** Renter's weekly rent. Null = use the implied market rent for the selection. */
+  rentWeekly: number | null;
+  rentGrowthPct: number;
+  /** Null = type-aware default (1.0% houses, 1.5% strata). */
+  ownershipCostsPct: number | null;
+  horizonYears: number;
 }
 
-const KEYS: Record<keyof AppState, string> = {
+const KEYS = {
   regionId: 'r',
   propertyType: 't',
   income: 'i',
@@ -30,22 +53,56 @@ const KEYS: Record<keyof AppState, string> = {
   customGrowthPct: 'g',
   depositPct: 'd',
   savingsReturnPct: 'y',
-};
+  mortgageRatePct: 'mr',
+  loanTermYears: 'lt',
+  extraRepaymentMonthly: 'x',
+  repaymentSharePct: 'rs',
+  upfrontCostsPct: 'uc',
+  lmiCost: 'lc',
+  rentalIncomeWeekly: 'ri',
+  rentWeekly: 'rw',
+  rentGrowthPct: 'rg',
+  ownershipCostsPct: 'oc',
+  horizonYears: 'h',
+} as const satisfies Record<keyof AppState, string>;
 
-const PROPERTY_TYPES: readonly PropertyType[] = ['house', 'unit', 'dwelling'];
+const PROPERTY_TYPES: readonly DisplayPropertyType[] = [
+  'house',
+  'townhouse',
+  'unit',
+  'dwelling',
+];
 const GROWTH_BASES: readonly GrowthBasis[] = ['tenYear', 'fiveYear', 'twelveMonth', 'custom'];
 
 export function encodeState(state: AppState): string {
   const params = new URLSearchParams();
+  const setNum = (key: string, value: number, digits = 0) =>
+    params.set(key, digits > 0 ? value.toFixed(digits) : String(Math.round(value)));
+
   params.set(KEYS.regionId, state.regionId);
   params.set(KEYS.propertyType, state.propertyType);
-  params.set(KEYS.income, String(Math.round(state.income)));
-  params.set(KEYS.currentSavings, String(Math.round(state.currentSavings)));
-  params.set(KEYS.monthlySavings, String(Math.round(state.monthlySavings)));
+  setNum(KEYS.income, state.income);
+  setNum(KEYS.currentSavings, state.currentSavings);
+  setNum(KEYS.monthlySavings, state.monthlySavings);
   params.set(KEYS.growthBasis, state.growthBasis);
-  params.set(KEYS.customGrowthPct, state.customGrowthPct.toFixed(2));
-  params.set(KEYS.depositPct, state.depositPct.toFixed(2));
-  params.set(KEYS.savingsReturnPct, state.savingsReturnPct.toFixed(2));
+  setNum(KEYS.customGrowthPct, state.customGrowthPct, 2);
+  setNum(KEYS.depositPct, state.depositPct, 2);
+  setNum(KEYS.savingsReturnPct, state.savingsReturnPct, 2);
+
+  setNum(KEYS.mortgageRatePct, state.mortgageRatePct, 2);
+  setNum(KEYS.loanTermYears, state.loanTermYears);
+  setNum(KEYS.extraRepaymentMonthly, state.extraRepaymentMonthly);
+  setNum(KEYS.repaymentSharePct, state.repaymentSharePct);
+  setNum(KEYS.upfrontCostsPct, state.upfrontCostsPct, 2);
+  setNum(KEYS.lmiCost, state.lmiCost);
+  setNum(KEYS.rentalIncomeWeekly, state.rentalIncomeWeekly);
+  setNum(KEYS.rentGrowthPct, state.rentGrowthPct, 2);
+  setNum(KEYS.horizonYears, state.horizonYears);
+
+  // Auto-derived fields: encoded only when the user has overridden them.
+  if (state.rentWeekly !== null) setNum(KEYS.rentWeekly, state.rentWeekly);
+  if (state.ownershipCostsPct !== null) setNum(KEYS.ownershipCostsPct, state.ownershipCostsPct, 2);
+
   return params.toString();
 }
 
@@ -56,6 +113,13 @@ function num(params: URLSearchParams, key: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function nullableNum(params: URLSearchParams, key: string): number | null {
+  const raw = params.get(key);
+  if (raw === null) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /** Decode, falling back to `defaults` for anything missing or malformed. */
 export function decodeState(hash: string, defaults: AppState): AppState {
   const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
@@ -64,8 +128,8 @@ export function decodeState(hash: string, defaults: AppState): AppState {
   const params = new URLSearchParams(cleaned);
 
   const rawType = params.get(KEYS.propertyType);
-  const propertyType = PROPERTY_TYPES.includes(rawType as PropertyType)
-    ? (rawType as PropertyType)
+  const propertyType = PROPERTY_TYPES.includes(rawType as DisplayPropertyType)
+    ? (rawType as DisplayPropertyType)
     : defaults.propertyType;
 
   const rawBasis = params.get(KEYS.growthBasis);
@@ -83,6 +147,18 @@ export function decodeState(hash: string, defaults: AppState): AppState {
     customGrowthPct: num(params, KEYS.customGrowthPct, defaults.customGrowthPct),
     depositPct: num(params, KEYS.depositPct, defaults.depositPct),
     savingsReturnPct: num(params, KEYS.savingsReturnPct, defaults.savingsReturnPct),
+
+    mortgageRatePct: num(params, KEYS.mortgageRatePct, defaults.mortgageRatePct),
+    loanTermYears: num(params, KEYS.loanTermYears, defaults.loanTermYears),
+    extraRepaymentMonthly: num(params, KEYS.extraRepaymentMonthly, defaults.extraRepaymentMonthly),
+    repaymentSharePct: num(params, KEYS.repaymentSharePct, defaults.repaymentSharePct),
+    upfrontCostsPct: num(params, KEYS.upfrontCostsPct, defaults.upfrontCostsPct),
+    lmiCost: num(params, KEYS.lmiCost, defaults.lmiCost),
+    rentalIncomeWeekly: num(params, KEYS.rentalIncomeWeekly, defaults.rentalIncomeWeekly),
+    rentWeekly: nullableNum(params, KEYS.rentWeekly),
+    rentGrowthPct: num(params, KEYS.rentGrowthPct, defaults.rentGrowthPct),
+    ownershipCostsPct: nullableNum(params, KEYS.ownershipCostsPct),
+    horizonYears: num(params, KEYS.horizonYears, defaults.horizonYears),
   };
 }
 

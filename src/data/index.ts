@@ -56,6 +56,18 @@ export const DEFAULT_REGION_ID = 'sydney';
 export const DEFAULT_PROPERTY_TYPE: PropertyType = 'house';
 
 /**
+ * Implied median weekly rent, derived from two published figures:
+ * gross yield = annual rent ÷ value, so weekly rent = value × yield ÷ 52.
+ * Returns null when the yield is unpublished. The derivation is disclosed
+ * wherever this number is shown.
+ */
+export function impliedWeeklyRent(region: Region, type: PropertyType): number | null {
+  const series = region.prices[type];
+  if (series.grossYieldPct === null) return null;
+  return (series.median * (series.grossYieldPct / 100)) / 52;
+}
+
+/**
  * The resolved growth rate, plus everything the UI needs to be honest about
  * where it came from. Never returns a bare number: a rate without its
  * provenance is exactly the magic number this project is trying to avoid.

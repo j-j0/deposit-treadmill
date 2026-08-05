@@ -1,7 +1,14 @@
 import type { AppState } from '../lib/urlState';
 import type { ResolvedGrowth } from '../data/index';
-import { GROWTH_BASIS_OPTIONS, getAssumption, type GrowthBasis } from '../data/assumptions';
-import { percent } from '../lib/format';
+import type { Assumption } from '../data/types';
+import {
+  GROWTH_BASIS_OPTIONS,
+  MORTGAGE_ASSUMPTIONS,
+  RENTING_ASSUMPTIONS,
+  getAssumption,
+  type GrowthBasis,
+} from '../data/assumptions';
+import { currency, percent } from '../lib/format';
 import { AssumptionBadge, Citation } from './Citation';
 
 /**
@@ -16,10 +23,89 @@ interface Props {
   state: AppState;
   growth: ResolvedGrowth;
   propertyTypeLabel: string;
+  /** Implied market rent for the current selection, for the auto note. */
+  impliedRentWeekly: number | null;
+  /** Type-aware ownership-costs default in force when no override is set. */
+  ownershipDefaultPct: number;
   onChange: (patch: Partial<AppState>) => void;
 }
 
-export function AssumptionsPanel({ state, growth, propertyTypeLabel, onChange }: Props) {
+/** State keys whose assumptions render as plain sliders. */
+type SliderKey =
+  | 'mortgageRatePct'
+  | 'loanTermYears'
+  | 'extraRepaymentMonthly'
+  | 'repaymentSharePct'
+  | 'upfrontCostsPct'
+  | 'rentGrowthPct'
+  | 'horizonYears';
+
+function formatValue(assumption: Assumption, value: number): string {
+  switch (assumption.unit) {
+    case 'currency':
+      return currency(value);
+    case 'years':
+      return `${value} yr`;
+    default:
+      return percent(value, assumption.step < 1 ? 2 : 0);
+  }
+}
+
+function SliderAssumption({
+  assumption,
+  value,
+  onChange,
+}: {
+  assumption: Assumption;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="assumption">
+      <div className="assumption__head">
+        <span className="assumption__title">
+          {assumption.label}
+          {assumption.sourceId ? <Citation sourceId={assumption.sourceId} /> : null}
+        </span>
+        <AssumptionBadge />
+      </div>
+      <div className="assumption__control">
+        <input
+          type="range"
+          min={assumption.min}
+          max={assumption.max}
+          step={assumption.step}
+          value={value}
+          aria-label={assumption.label}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <span className="assumption__value">{formatValue(assumption, value)}</span>
+      </div>
+      <p className="assumption__rationale">{assumption.rationale}</p>
+    </div>
+  );
+}
+
+export function AssumptionsPanel({
+  state,
+  growth,
+  propertyTypeLabel,
+  impliedRentWeekly,
+  ownershipDefaultPct,
+  onChange,
+}: Props) {
+  const slider = (id: SliderKey) => {
+    const assumption = MORTGAGE_ASSUMPTIONS.concat(RENTING_ASSUMPTIONS).find((a) => a.id === id)!;
+    return (
+      <SliderAssumption
+        key={id}
+        assumption={assumption}
+        value={state[id]}
+        onChange={(value) => onChange({ [id]: value })}
+      />
+    );
+  };
+
   const depositAssumption = getAssumption('depositPct')!;
   const returnAssumption = getAssumption('savingsReturnPct')!;
   const growthAssumption = getAssumption('growthRatePct')!;
@@ -149,6 +235,123 @@ export function AssumptionsPanel({ state, growth, propertyTypeLabel, onChange }:
         </div>
         <p className="assumption__rationale">{returnAssumption.rationale}</p>
       </div>
+
+      {/* ---- Mortgage group ---- */}
+      <h2 style={{ marginTop: 28 }}>The mortgage</h2>
+      {slider('mortgageRatePct')}
+      {slider('loanTermYears')}
+      {slider('extraRepaymentMonthly')}
+      {slider('repaymentSharePct')}
+      {slider('upfrontCostsPct')}
+
+      {state.depositPct < 20 && (
+        <div className="assumption">
+          <div className="assumption__head">
+            <span className="assumption__title">Lenders mortgage insurance</span>
+            <AssumptionBadge />
+          </div>
+          <div className="assumption__control">
+            <input
+              type="range"
+              min={0}
+              max={80_000}
+              step={500}
+              value={state.lmiCost}
+              aria-label="Lenders mortgage insurance"
+              onChange={(e) => onChange({ lmiCost: Number(e.target.value) })}
+            />
+            <span className="assumption__value">{currency(state.lmiCost)}</span>
+          </div>
+          <p className="assumption__rationale">
+            Below a 20% deposit, lenders charge LMI — an insurance premium protecting them, not
+            you, usually capitalised into the loan. Premiums are set by private insurers and are
+            not published as open data, so there is no defensible default: get a quote from a
+            broker or lender and put it here. It is added to the loan in every calculation above.
+          </p>
+        </div>
+      )}
+
+      {/* ---- Renting group ---- */}
+      <h2 style={{ marginTop: 28 }}>The renting alternative</h2>
+
+      <div className="assumption">
+        <div className="assumption__head">
+          <span className="assumption__title">Weekly rent while renting</span>
+          <AssumptionBadge />
+        </div>
+        <div className="assumption__control">
+          <input
+            type="range"
+            min={100}
+            max={2000}
+            step={5}
+            value={Math.round(state.rentWeekly ?? impliedRentWeekly ?? 600)}
+            aria-label="Weekly rent while renting"
+            onChange={(e) => onChange({ rentWeekly: Number(e.target.value) })}
+          />
+          <span className="assumption__value">
+            {currency(state.rentWeekly ?? impliedRentWeekly ?? 600)}/wk
+          </span>
+          {state.rentWeekly !== null && (
+            <button type="button" className="btn" onClick={() => onChange({ rentWeekly: null })}>
+              Reset to market
+            </button>
+          )}
+        </div>
+        <p className="assumption__rationale">
+          What the renter in the comparison pays for equivalent housing.{' '}
+          {state.rentWeekly === null ? (
+            <>
+              Currently following the implied market rent for this selection
+              {impliedRentWeekly !== null ? ` (${currency(impliedRentWeekly)}/wk)` : ''} — the
+              median value × its published gross yield ÷ 52, both figures cited. Move the slider
+              to pin your own figure.
+            </>
+          ) : (
+            <>Pinned to your figure; “Reset to market” returns to the derived rent.</>
+          )}
+        </p>
+      </div>
+
+      {slider('rentGrowthPct')}
+
+      <div className="assumption">
+        <div className="assumption__head">
+          <span className="assumption__title">Ownership running costs, per year</span>
+          <AssumptionBadge />
+        </div>
+        <div className="assumption__control">
+          <input
+            type="range"
+            min={0}
+            max={4}
+            step={0.1}
+            value={state.ownershipCostsPct ?? ownershipDefaultPct}
+            aria-label="Ownership running costs"
+            onChange={(e) => onChange({ ownershipCostsPct: Number(e.target.value) })}
+          />
+          <span className="assumption__value">
+            {percent(state.ownershipCostsPct ?? ownershipDefaultPct, 1)}
+          </span>
+          {state.ownershipCostsPct !== null && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => onChange({ ownershipCostsPct: null })}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <p className="assumption__rationale">
+          Council rates, insurance, maintenance — plus strata levies for {propertyTypeLabel === 'houses' ? 'strata properties' : 'townhouses and units'}.
+          Defaults to {percent(ownershipDefaultPct, 1)} for your current selection (1.0% houses,
+          1.5% strata). A rule of thumb, not a published statistic — no official series measures
+          it, which is why it is editable rather than quietly assumed.
+        </p>
+      </div>
+
+      {slider('horizonYears')}
     </section>
   );
 }

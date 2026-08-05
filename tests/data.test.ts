@@ -105,6 +105,7 @@ describe('auto-refreshed figures are actually wired through', () => {
       'abs-national-accounts',
       'abs-total-value-dwellings',
       'rba-cash-rate',
+      'rba-f6',
     ]);
     // Cotality has no free API — if this ever flips, the claim in the README
     // and the refresh script's scope comment are both wrong.
@@ -184,6 +185,48 @@ describe('transcription from the Cotality HVI (30 June 2026)', () => {
       expect(region.prices.unit.median, `${region.id} unit`).toBe(expected!.unit);
       expect(region.prices.dwelling.median, `${region.id} dwelling`).toBe(expected!.dwelling);
       expect(region.growth.tenYearChangePct, `${region.id} 10yr`).toBe(expected!.ten);
+    }
+  });
+
+  // Second independent statement of the p.4 "Gross yield" rows, so a typo in
+  // regions.capitals.ts cannot survive. Order: [house, unit, dwelling].
+  const publishedYields: Record<string, [number, number, number]> = {
+    au: [3.4, 4.5, 3.7],
+    sydney: [2.8, 4.3, 3.3],
+    melbourne: [3.4, 5.1, 3.9],
+    brisbane: [3.1, 3.9, 3.3],
+    perth: [3.6, 4.7, 3.7],
+    adelaide: [3.3, 4.3, 3.5],
+    hobart: [4.3, 4.8, 4.4],
+    canberra: [3.8, 5.4, 4.2],
+    darwin: [5.6, 7.1, 6.1],
+  };
+
+  it('matches the published gross rental yields exactly', () => {
+    for (const region of CAPITAL_REGIONS) {
+      const expected = publishedYields[region.id];
+      expect(expected, `no published yields recorded for "${region.id}"`).toBeDefined();
+      expect(region.prices.house.grossYieldPct, `${region.id} house yield`).toBe(expected![0]);
+      expect(region.prices.unit.grossYieldPct, `${region.id} unit yield`).toBe(expected![1]);
+      expect(region.prices.dwelling.grossYieldPct, `${region.id} dwelling yield`).toBe(
+        expected![2],
+      );
+    }
+  });
+
+  it('yields are sane: units out-yield houses everywhere, all within 1–10%', () => {
+    for (const region of CAPITAL_REGIONS) {
+      for (const type of PROPERTY_TYPES) {
+        const y = region.prices[type].grossYieldPct;
+        expect(y, `${region.id} ${type} yield missing`).not.toBeNull();
+        expect(y!).toBeGreaterThan(1);
+        expect(y!).toBeLessThan(10);
+      }
+      // Cheaper strata stock rents for proportionally more in every capital —
+      // if this ever inverts, the transcription is suspect.
+      expect(region.prices.unit.grossYieldPct!).toBeGreaterThan(
+        region.prices.house.grossYieldPct!,
+      );
     }
   });
 

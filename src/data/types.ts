@@ -17,6 +17,27 @@ export type PropertyType = 'house' | 'unit' | 'dwelling';
 export const PROPERTY_TYPES: readonly PropertyType[] = ['house', 'unit', 'dwelling'];
 
 /**
+ * What the user can SELECT. Townhouse is a UI-level type, not a data-level one:
+ * Cotality's methodology classifies strata-titled townhouses and villas inside
+ * its unit segment, and publishes no separate townhouse series. Selecting
+ * townhouse therefore reads the unit data, with that mapping disclosed in the
+ * UI rather than hidden here.
+ */
+export type DisplayPropertyType = PropertyType | 'townhouse';
+
+export const DISPLAY_PROPERTY_TYPES: readonly DisplayPropertyType[] = [
+  'house',
+  'townhouse',
+  'unit',
+  'dwelling',
+];
+
+/** The published data series a selected display type reads from. */
+export function dataTypeFor(display: DisplayPropertyType): PropertyType {
+  return display === 'townhouse' ? 'unit' : display;
+}
+
+/**
  * 'national' and 'capital' ship in v1. 'suburb' is defined now so the type,
  * the loader and the UI already handle it — adding suburb data is a data task,
  * not a refactor.
@@ -30,6 +51,12 @@ export interface PriceSeries {
   median: number;
   /** Published 12-month change, as a percentage (e.g. 17.4 means +17.4%). */
   annualChangePct: number;
+  /**
+   * Published gross rental yield, as a percentage (e.g. 4.3 means 4.3%).
+   * Gross = annual rent ÷ value, before any costs. Null where unpublished
+   * (future suburb rows may lack it).
+   */
+  grossYieldPct: number | null;
 }
 
 /**
@@ -100,7 +127,7 @@ export interface Source {
   note?: string;
 }
 
-export type AssumptionUnit = 'percent' | 'currency';
+export type AssumptionUnit = 'percent' | 'currency' | 'years';
 
 /**
  * A number the model needs that no source can supply, because it describes the

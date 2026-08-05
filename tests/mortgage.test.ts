@@ -106,6 +106,74 @@ describe('simulateMortgage', () => {
   });
 });
 
+describe('comparing two loans is only valid like-for-like', () => {
+  // Regression: the "buy later at the moved price" panel simulated the future
+  // loan WITHOUT the extra repayments and rental income that the buy-today loan
+  // had. On a real case (Sydney units, $743/wk room income) that reported the
+  // gap as $675k when the true like-for-like gap was $41k — a 16x overstatement.
+  const rate = 6.2;
+  const term = 30;
+  const offset = (743 * 52) / 12;
+  const loanToday = 898_623 * 0.8;
+  const loanLater = 979_801 * 0.8;
+
+  const today = simulateMortgage({
+    principal: loanToday,
+    annualRatePct: rate,
+    termYears: term,
+    offsetIncomeMonthly: offset,
+  });
+
+  it('mismatched offsets inflate the gap by an order of magnitude', () => {
+    const laterWithout = simulateMortgage({
+      principal: loanLater,
+      annualRatePct: rate,
+      termYears: term,
+    });
+    const laterWith = simulateMortgage({
+      principal: loanLater,
+      annualRatePct: rate,
+      termYears: term,
+      offsetIncomeMonthly: offset,
+    });
+
+    const bogusGap = laterWithout.totalInterest - today.totalInterest;
+    const honestGap = laterWith.totalInterest - today.totalInterest;
+
+    expect(Math.round(honestGap)).toBeCloseTo(41_199, -2);
+    // The unfair comparison is more than ten times the real one — which is why
+    // both sides must always carry the same repayment settings.
+    expect(bogusGap).toBeGreaterThan(honestGap * 10);
+  });
+
+  it('a larger loan on the same settings costs more interest, but proportionately', () => {
+    const later = simulateMortgage({
+      principal: loanLater,
+      annualRatePct: rate,
+      termYears: term,
+      offsetIncomeMonthly: offset,
+    });
+    expect(later.totalInterest).toBeGreaterThan(today.totalInterest);
+    // ~9% more principal should not produce multiples more interest.
+    expect(later.totalInterest).toBeLessThan(today.totalInterest * 1.5);
+  });
+});
+
+describe('a full-term loan reports its full term, not one month more', () => {
+  // The closed-form payment leaves a sub-cent residue in the final period.
+  // Unrounded, that needed a 361st month and displayed as "30 years 1 month".
+  it.each([
+    [718_898.4, 6.2],
+    [783_840.8, 6.2],
+    [500_000, 6],
+    [1_245_006, 6.2],
+  ])('principal %d at %d%% clears in exactly 360 months', (principal, rate) => {
+    const r = simulateMortgage({ principal, annualRatePct: rate, termYears: 30 });
+    expect(r.payoffMonths).toBe(360);
+    expect(r.payoffYears).toBe(30);
+  });
+});
+
 describe('stepBalance', () => {
   it('charges interest then applies the payment', () => {
     // 1000 at 1%/month with a 500 payment: interest 10, balance 1010−500=510.

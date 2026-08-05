@@ -56,6 +56,7 @@ export function MortgagePanel({
   }
 
   const interestVsPrice = result.totalInterest / price;
+  const baselineVsPrice = result.baselineInterest / price;
   const paymentShare = monthlyIncome > 0 ? (result.requiredPayment / monthlyIncome) * 100 : null;
   const hasOffsets = extraRepaymentMonthly > 0 || rentalIncomeWeekly > 0;
 
@@ -84,10 +85,22 @@ export function MortgagePanel({
         </div>
 
         <div className="goalpost goalpost--drift">
-          <div className="goalpost__label">Total interest over the loan</div>
+          <div className="goalpost__label">
+            {hasOffsets ? 'Total interest, with your extra payments' : 'Total interest over the loan'}
+          </div>
           <div className="goalpost__value">{currency(result.totalInterest)}</div>
           <div className="goalpost__meta">
-            {(interestVsPrice * 100).toFixed(0)}% of the price itself, again, in interest
+            {/* Without this, the headline silently reflects the offsets and
+                looks impossibly low next to any other calculator. */}
+            {hasOffsets ? (
+              <>
+                {(interestVsPrice * 100).toFixed(0)}% of the price —{' '}
+                {currency(result.baselineInterest)} ({(baselineVsPrice * 100).toFixed(0)}%) on the
+                scheduled repayment alone
+              </>
+            ) : (
+              <>{(interestVsPrice * 100).toFixed(0)}% of the price itself, again, in interest</>
+            )}
           </div>
         </div>
       </div>
@@ -122,7 +135,8 @@ export function MortgagePanel({
           {currency(atGoalpost.result.totalInterest)} —{' '}
           {absCurrency(atGoalpost.result.totalInterest - result.totalInterest)}{' '}
           {atGoalpost.result.totalInterest >= result.totalInterest ? 'more' : 'less'} than buying
-          today. The goalposts move for the loan too, not just the deposit.
+          today{hasOffsets ? ', on identical repayment settings' : ''}. The goalposts move for the
+          loan too, not just the deposit.
         </div>
       )}
     </section>

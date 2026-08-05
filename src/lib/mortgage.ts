@@ -85,8 +85,15 @@ export function stepBalance(
   const interest = balance * monthlyRate;
   const owing = balance + interest;
   const paid = Math.min(payment, owing);
-  return { balance: owing - paid, interest, paid };
+  const remaining = owing - paid;
+  // The closed-form payment leaves a sub-cent residue after the final period.
+  // Without this, a 30-year loan needs a 361st month to clear a fraction of a
+  // cent and reports its term as "30 years 1 month".
+  return { balance: remaining < SETTLED_EPSILON ? 0 : remaining, interest, paid };
 }
+
+/** Below half a cent, a loan is paid off. */
+const SETTLED_EPSILON = 0.005;
 
 function simulate(
   principal: number,

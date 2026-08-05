@@ -225,6 +225,11 @@ export default function App() {
 
   // The same mortgage if bought at the moment the projection says the deposit
   // target is reached — the goalposts move for the loan too.
+  //
+  // It must carry the SAME extra repayments and rental income as the buy-today
+  // loan. Comparing a loan with those offsets against one without them made the
+  // gap look ~16x larger than it is, which is exactly the kind of scary-but-
+  // wrong number this project exists not to print.
   const mortgageAtGoalpost = useMemo(() => {
     if (projection.outcome.kind !== 'reached' || projection.outcome.month === 0) return null;
     const price = projection.outcome.priceAtReach;
@@ -236,9 +241,19 @@ export default function App() {
         principal: goalLoan,
         annualRatePct: state.mortgageRatePct,
         termYears: state.loanTermYears,
+        extraMonthly: state.extraRepaymentMonthly,
+        offsetIncomeMonthly: (state.rentalIncomeWeekly * 52) / 12,
       }),
     };
-  }, [projection, state.depositPct, state.lmiCost, state.mortgageRatePct, state.loanTermYears]);
+  }, [
+    projection,
+    state.depositPct,
+    state.lmiCost,
+    state.mortgageRatePct,
+    state.loanTermYears,
+    state.extraRepaymentMonthly,
+    state.rentalIncomeWeekly,
+  ]);
 
   const affordability = useMemo(
     () =>

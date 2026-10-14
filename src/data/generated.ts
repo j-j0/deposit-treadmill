@@ -7,13 +7,13 @@
 // regions.capitals.ts is transcribed by hand from the Cotality Home Value Index,
 // which has no free API — see scripts/refresh-data.mjs for why.
 
-export const GENERATED_AT = '2026-08-05T10:43:34.609Z';
+export const GENERATED_AT = '2026-10-03T14:05:23.570Z';
 
 /** RBA cash rate target. Source: RBA statistical table F1. */
 export const CASH_RATE = {
-  valuePct: 4.35,
-  effectiveISO: '2026-08-04',
-  effectiveLabel: '04-Aug-2026',
+  valuePct: 4.6,
+  effectiveISO: '2026-10-01',
+  effectiveLabel: '01-Oct-2026',
 } as const;
 
 /**
@@ -22,8 +22,8 @@ export const CASH_RATE = {
  */
 export const MORTGAGE_RATE = {
   valuePct: 6.2,
-  effectiveISO: '2026-05-31',
-  effectiveLabel: '31/05/2026',
+  effectiveISO: '2026-07-31',
+  effectiveLabel: '31/07/2026',
 } as const;
 
 /**
@@ -32,35 +32,35 @@ export const MORTGAGE_RATE = {
  */
 export const MORTGAGE_RATE_INVESTOR = {
   valuePct: 6.4,
-  effectiveISO: '2026-05-31',
-  effectiveLabel: '31/05/2026',
+  effectiveISO: '2026-07-31',
+  effectiveLabel: '31/07/2026',
 } as const;
 
 /** ABS Average Weekly Earnings: FT adult AWOTE, persons, seasonally adjusted. */
 export const AWE = {
-  weekly: 2051.1,
-  period: '2025-S2',
-  periodLabel: 'November 2025',
+  weekly: 2083.7,
+  period: '2026-S1',
+  periodLabel: 'May 2026',
 } as const;
 
 /** ABS household saving to income ratio, seasonally adjusted. */
 export const SAVING_RATIO = {
-  pct: 6.2,
-  period: '2026-Q1',
-  periodLabel: 'March quarter 2026',
+  pct: 6.5,
+  period: '2026-Q2',
+  periodLabel: 'June quarter 2026',
 } as const;
 
 /** ABS mean price of residential dwellings by state. Display-only cross-check. */
-export const ABS_MEAN_DWELLING_PERIOD = '2026-Q1';
-export const ABS_MEAN_DWELLING_PERIOD_LABEL = 'March quarter 2026';
+export const ABS_MEAN_DWELLING_PERIOD = '2026-Q2';
+export const ABS_MEAN_DWELLING_PERIOD_LABEL = 'June quarter 2026';
 export const ABS_MEAN_DWELLING_PRICES = [
-  { code: 'AUS', name: 'Australia', meanPrice: 1111100, relatedRegionId: 'au' },
-  { code: 'NSW', name: 'New South Wales', meanPrice: 1324800, relatedRegionId: 'sydney' },
-  { code: 'VIC', name: 'Victoria', meanPrice: 947100, relatedRegionId: 'melbourne' },
-  { code: 'QLD', name: 'Queensland', meanPrice: 1123700, relatedRegionId: 'brisbane' },
-  { code: 'SA', name: 'South Australia', meanPrice: 973100, relatedRegionId: 'adelaide' },
-  { code: 'WA', name: 'Western Australia', meanPrice: 1103500, relatedRegionId: 'perth' },
-  { code: 'TAS', name: 'Tasmania', meanPrice: 750300, relatedRegionId: 'hobart' },
-  { code: 'NT', name: 'Northern Territory', meanPrice: 597300, relatedRegionId: 'darwin' },
-  { code: 'ACT', name: 'Australian Capital Territory', meanPrice: 1018000, relatedRegionId: 'canberra' },
+  { code: 'AUS', name: 'Australia', meanPrice: 1100400, relatedRegionId: 'au' },
+  { code: 'NSW', name: 'New South Wales', meanPrice: 1304900, relatedRegionId: 'sydney' },
+  { code: 'VIC', name: 'Victoria', meanPrice: 918400, relatedRegionId: 'melbourne' },
+  { code: 'QLD', name: 'Queensland', meanPrice: 1130600, relatedRegionId: 'brisbane' },
+  { code: 'SA', name: 'South Australia', meanPrice: 979600, relatedRegionId: 'adelaide' },
+  { code: 'WA', name: 'Western Australia', meanPrice: 1123700, relatedRegionId: 'perth' },
+  { code: 'TAS', name: 'Tasmania', meanPrice: 733200, relatedRegionId: 'hobart' },
+  { code: 'NT', name: 'Northern Territory', meanPrice: 614400, relatedRegionId: 'darwin' },
+  { code: 'ACT', name: 'Australian Capital Territory', meanPrice: 981700, relatedRegionId: 'canberra' },
 ] as const;
